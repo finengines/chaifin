@@ -12,8 +12,8 @@ load_dotenv()
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/macAssistant")
 
 # Default AI Provider and Model
-DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "openai")
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-4o")
+DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "openrouter")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "google/gemini-2.0-flash-001")
 
 # UI Configuration
 APP_TITLE = os.getenv("APP_TITLE", "Personal Assistant")
