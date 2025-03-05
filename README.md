@@ -21,27 +21,36 @@ This project provides a Chainlit-based frontend UI for a personal assistant, wit
 - **Feedback Collection**: Enable user feedback on responses
 - **Markdown Support**: Rich text formatting in messages
 - **Multi-Modal Support**: Display images and files from the backend
+- **Status Updates**: Real-time status updates, progress indicators, alerts, and toast notifications
+- **Status Webhook Server**: Dedicated webhook server for receiving status updates from n8n
 
 ## Requirements
 
 - Python 3.9+
 - Chainlit 2.2.0+
 - Requests 2.31.0+
+- FastAPI 0.104.0+
+- Uvicorn 0.23.0+
 - n8n backend running with the macAssistant webhook configured
 
 ## Project Structure
 
 ```
 ChainFin/
-├── app.py                 # Main application file
-├── config.py              # Configuration settings
-├── requirements.txt       # Dependencies
-├── README.md              # Documentation
-├── .env                   # Environment variables (create from .env.example)
-├── .env.example           # Example environment variables
-├── chainlit.md            # Welcome screen content
-└── .chainlit/             # Chainlit configuration
-    └── config.json        # Chainlit UI configuration
+├── app.py                     # Main application file
+├── config.py                  # Configuration settings
+├── requirements.txt           # Dependencies
+├── README.md                  # Documentation
+├── .env                       # Environment variables (create from .env.example)
+├── .env.example               # Example environment variables
+├── chainlit.md                # Welcome screen content
+├── status_updates.py          # Status updates module
+├── status_webhook_server.py   # Status webhook server
+├── test_status_webhook.py     # Test script for status webhook
+├── n8n_integration_example.py # n8n integration example
+├── README_STATUS_WEBHOOK.md   # Status webhook documentation
+└── .chainlit/                 # Chainlit configuration
+    └── config.json            # Chainlit UI configuration
 ```
 
 ## Installation
@@ -94,6 +103,64 @@ The Chainlit UI can be customized by editing the `.chainlit/config.json` file. S
 4. Access the UI at http://localhost:8000
 5. Select a chat profile from the dropdown menu to start chatting with a specific model
 
+### Status Webhook Server
+
+The application includes a dedicated webhook server for receiving status updates from external systems (like n8n workflows). This allows you to display real-time progress indicators, alerts, and notifications in the Chainlit UI.
+
+### How It Works
+
+The status webhook server runs as a separate service on port 5679 and is automatically started when you launch the Chainlit application. It receives HTTP POST requests with status update information and displays them in the Chainlit UI.
+
+### Using the Status Webhook Server
+
+To send a status update, make an HTTP POST request to `http://localhost:5679/status` with a JSON payload containing the status update information:
+
+```bash
+curl -X POST http://localhost:5679/status \
+  -H "Content-Type: application/json" \
+  -d '{"type": "success", "title": "Task Completed", "content": "The task has been completed successfully!"}'
+```
+
+### Supported Status Update Types
+
+- `progress`: Shows a progress bar with percentage
+- `success`: Displays a success message
+- `warning`: Displays a warning message
+- `error`: Displays an error message
+- `info`: Displays an informational message
+- `toast`: Shows a temporary toast notification
+- Custom types: Displayed using a custom element
+
+### Testing and Diagnostics
+
+The repository includes several tools to help you test and diagnose the status webhook server:
+
+1. **Test Script**: Run `python test_status_webhook.py --demo` to send various types of status updates to the webhook server.
+
+2. **Diagnostic Script**: Run `python diagnose_webhook.py` to check if the webhook server is running correctly and diagnose any issues.
+
+3. **Health Check**: Access `http://localhost:5679/health` in your browser to check the status of the webhook server.
+
+For more detailed information, see the [Status Webhook Documentation](README_STATUS_WEBHOOK.md) and [Webhook Integration Fixes](WEBHOOK_FIXES.md).
+
+### Notification System Improvements
+
+The notification system has been enhanced with the following features:
+
+1. **Robust Error Handling**: The system now includes comprehensive error handling for all notification types, with fallback mechanisms to ensure notifications are always displayed.
+
+2. **Custom JavaScript Integration**: A custom JavaScript implementation in `.chainlit/custom.js` provides an independent toast notification system that operates alongside Chainlit's built-in system.
+
+3. **Multiple Display Methods**: Notifications can now be displayed through multiple methods, ensuring they reach the user even if one method fails.
+
+4. **Comprehensive Testing**: The `test_all_notifications.py` script allows testing of all notification types to verify functionality.
+
+5. **Port Conflict Resolution**: The webhook server now handles port conflicts gracefully, with automatic detection and resolution.
+
+6. **Health Monitoring**: Enhanced health checks provide detailed information about the status of the webhook server and notification processing.
+
+7. **Fallback Mechanisms**: If a notification cannot be displayed through the primary method, it will automatically fall back to alternative methods.
+
 ## API Integration
 
 The application communicates with the n8n backend using a webhook. The payload sent to the webhook includes:
@@ -108,6 +175,23 @@ The expected response format is a JSON array containing an object with:
 - `output`: The AI's response text
 - `elements` (optional): Array of elements to display (images, files, etc.)
 - `metadata` (optional): Additional metadata for the response
+
+### Status Updates Integration
+
+The status webhook server can be integrated with n8n to display real-time status updates in the Chainlit UI. In your n8n workflow, add an HTTP Request node with the following configuration:
+
+- Method: POST
+- URL: http://localhost:5679/status
+- Headers: Content-Type: application/json
+- Body: JSON
+- JSON Body:
+  ```json
+  {
+    "content": "Your status message here",
+    "type": "progress",
+    "title": "Optional title"
+  }
+  ```
 
 ## Customization
 
@@ -144,4 +228,80 @@ To add new models:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+# Chainlit Webhook Integration
+
+This project provides a webhook integration for Chainlit applications, allowing external systems to send status updates and notifications that are displayed in the Chainlit UI.
+
+## Features
+
+- **Webhook Server**: A lightweight server that receives status updates from external systems
+- **Multiple Notification Types**: Support for various notification types including:
+  - Toast notifications
+  - Status updates (success, warning, error, info)
+  - Progress indicators
+  - Animated progress steps
+  - Alerts (important, notification, system)
+  - Task lists
+- **n8n Integration**: Example workflow for integrating with n8n
+- **Testing Tools**: Scripts to test the webhook integration
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.8+
+- Chainlit 2.1.0+
+
+### Installation
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/yourusername/chainlit-webhook-integration.git
+   cd chainlit-webhook-integration
+   ```
+
+2. Install the required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Running the Application
+
+1. Start the Chainlit application:
+   ```bash
+   chainlit run app.py
+   ```
+
+2. The webhook server will start automatically with the Chainlit application.
+
+3. Test the webhook integration:
+   ```bash
+   ./test_toast_notification.py --all
+   ```
+
+## Usage
+
+### Sending Status Updates
+
+To send a status update to the webhook server, make a POST request to the `/status` endpoint:
+
+```bash
+curl -X POST http://localhost:5679/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "toast",
+    "content": "This is a toast notification",
+    "toast_type": "info",
+    "duration": 5000
+  }'
+```
+
+### Checking Server Health
+
+To check if the webhook server is running:
+
+```bash
+curl -X GET http://localhost:5679/health
+```

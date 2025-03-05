@@ -3,4 +3,6 @@ requests>=2.31.0
 python-dotenv>=1.0.0
 uuid>=1.30
 pillow>=10.0.0  # For image processing
-pydantic>=2.0.0  # For data validation 
+pydantic>=2.0.0  # For data validation
+fastapi>=0.104.0  # For webhook server
+uvicorn>=0.23.0  # For running the webhook server 

@@ -10,9 +10,13 @@ import time
 import os
 from typing import Dict, Any, List, Optional
 import chainlit as cl
+import asyncio
 
 # Import configuration
 import config
+
+# Import status webhook integration
+import status_webhook_integration
 
 # Import status updates
 from status_updates import (
@@ -46,6 +50,17 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Stop any existing webhook server
+status_webhook_integration.stop_webhook_server()
+logger.info("Stopped any existing webhook server")
+
+# Start the webhook server
+webhook_server_thread = status_webhook_integration.start_webhook_server(port=5679)
+if webhook_server_thread:
+    logger.info("Started status webhook server on port 5679")
+else:
+    logger.error("Failed to start webhook server. Notifications may not work correctly.")
 
 @cl.set_chat_profiles
 def chat_profiles():
@@ -136,12 +151,324 @@ def chat_profiles():
 @cl.on_chat_start
 async def on_chat_start():
     """
-    Initialize the chat session.
-    
-    This function is called when a new chat session is started.
+    Initialize the chat session when a new user connects.
     It initializes the conversation history and sets the initial model.
     """
     print("Starting new chat session...")
+    
+    # Verify webhook server is running
+    try:
+        health_response = requests.get("http://localhost:5679/health", timeout=2)
+        if health_response.status_code == 200:
+            health_data = health_response.json()
+            logger.info(f"Webhook server health: {health_data}")
+            
+            if not health_data.get("server_running", False):
+                logger.warning("Webhook server reports it's not running. Attempting to restart...")
+                # Restart the webhook server
+                status_webhook_integration.stop_webhook_server()
+                webhook_server_thread = status_webhook_integration.start_webhook_server(port=5679)
+                if webhook_server_thread:
+                    logger.info("Restarted webhook server successfully")
+                else:
+                    logger.error("Failed to restart webhook server")
+        else:
+            logger.warning(f"Webhook server health check failed with status code: {health_response.status_code}")
+    except Exception as e:
+        logger.error(f"Error checking webhook server health: {str(e)}")
+        logger.info("Attempting to restart webhook server...")
+        # Restart the webhook server
+        status_webhook_integration.stop_webhook_server()
+        webhook_server_thread = status_webhook_integration.start_webhook_server(port=5679)
+        if webhook_server_thread:
+            logger.info("Started webhook server successfully")
+        else:
+            logger.error("Failed to start webhook server")
+    
+    # Start a background task to process status updates
+    cl.user_session.set("process_status_updates", True)
+    
+    async def process_status_updates():
+        """Process status updates from the queue"""
+        logger.info("Starting status update processing task")
+        
+        # Clear any existing status updates in the queue
+        status_webhook_integration.clear_queue()
+        
+        while cl.user_session.get("process_status_updates", True):
+            try:
+                # Check if there are any status updates in the queue
+                update = status_webhook_integration.get_next_status_update()
+                if update:
+                    try:
+                        # Extract update data
+                        update_type = update.get("type", "info")
+                        content = update.get("content", "")
+                        title = update.get("title", "Status Update")
+                        progress = update.get("progress", None)
+                        duration = update.get("duration", 3000)
+                        icon = update.get("icon", None)
+                        
+                        logger.info(f"Processing status update: {update_type} - {title}")
+                        
+                        # Handle different types of status updates
+                        if update_type == "toast":
+                            # Use multiple methods to ensure toast notifications are displayed
+                            toast_type = update.get("toast_type", "info")
+                            
+                            # Method 1: Use the notify method
+                            try:
+                                await cl.notify(
+                                    message=content,
+                                    type=toast_type,
+                                    duration=duration
+                                )
+                                logger.info(f"Sent toast notification via notify: {content}")
+                            except Exception as e:
+                                logger.error(f"Error sending toast via notify: {str(e)}")
+                            
+                            # Method 2: Use the show_toast function
+                            try:
+                                await show_toast(content, toast_type, duration)
+                                logger.info(f"Sent toast notification via show_toast: {content}")
+                            except Exception as e:
+                                logger.error(f"Error sending toast via show_toast: {str(e)}")
+                            
+                            # Method 3: Send as a regular message with toast styling
+                            try:
+                                msg = cl.Message(content=f"**{toast_type.upper()}**: {content}")
+                                await msg.send()
+                                logger.info(f"Sent toast as regular message: {content}")
+                            except Exception as e:
+                                logger.error(f"Error sending toast as message: {str(e)}")
+                        
+                        elif update_type == "progress" and progress is not None:
+                            # Use the progress status function
+                            try:
+                                await progress_status(title, content, progress, icon)
+                                logger.info(f"Sent progress update: {progress}%")
+                            except Exception as e:
+                                logger.error(f"Error sending progress update: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**Progress ({progress}%)**: {content}")
+                                await msg.send()
+                        
+                        elif update_type == "task_list":
+                            # Handle task list updates
+                            try:
+                                tasks = update.get("tasks", [])
+                                task_list = StyledTaskList(title=title)
+                                await task_list.create()
+                                
+                                for task in tasks:
+                                    task_name = task.get("name", "Task")
+                                    task_status = task.get("status", "running")
+                                    task_icon = task.get("icon", None)
+                                    await task_list.add_task(task_name, task_status, task_icon)
+                                
+                                logger.info(f"Created task list with {len(tasks)} tasks")
+                            except Exception as e:
+                                logger.error(f"Error creating task list: {str(e)}")
+                                # Fallback: Send as a regular message
+                                tasks = update.get("tasks", [])
+                                task_text = "\n".join([f"- {task.get('name', 'Task')}: {task.get('status', 'running')}" for task in tasks])
+                                msg = cl.Message(content=f"**{title}**\n{task_text}")
+                                await msg.send()
+                        
+                        elif update_type == "animated_progress":
+                            # Handle animated progress
+                            try:
+                                steps = update.get("steps", [])
+                                delay = update.get("delay", 0.5)
+                                await animated_progress(title, content, steps, delay)
+                                logger.info(f"Sent animated progress with {len(steps)} steps")
+                            except Exception as e:
+                                logger.error(f"Error sending animated progress: {str(e)}")
+                                # Fallback: Send as a regular message
+                                steps = update.get("steps", [])
+                                steps_text = "\n".join([f"{i+1}. {step}" for i, step in enumerate(steps)])
+                                msg = cl.Message(content=f"**{title}**\n{content}\n\n{steps_text}")
+                                await msg.send()
+                        
+                        elif update_type == "important_alert":
+                            # Handle important alert
+                            try:
+                                await important_alert(title, content, icon)
+                                logger.info(f"Sent important alert: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending important alert: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**IMPORTANT ALERT: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "notification_alert":
+                            # Handle notification alert
+                            try:
+                                await notification_alert(title, content, icon)
+                                logger.info(f"Sent notification alert: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending notification alert: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**NOTIFICATION: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "system_alert":
+                            # Handle system alert
+                            try:
+                                await system_alert(title, content, icon)
+                                logger.info(f"Sent system alert: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending system alert: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**SYSTEM ALERT: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "success":
+                            # Handle success status
+                            try:
+                                await success_status(title, content, icon)
+                                logger.info(f"Sent success status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending success status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**✅ SUCCESS: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "warning":
+                            # Handle warning status
+                            try:
+                                await warning_status(title, content, icon)
+                                logger.info(f"Sent warning status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending warning status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**⚠️ WARNING: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "error":
+                            # Handle error status
+                            try:
+                                await error_status(title, content, icon)
+                                logger.info(f"Sent error status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending error status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**❌ ERROR: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "info":
+                            # Handle info status
+                            try:
+                                await info_status(title, content, icon)
+                                logger.info(f"Sent info status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending info status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**ℹ️ INFO: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "email":
+                            # Handle email status
+                            try:
+                                await email_status(title, content, icon)
+                                logger.info(f"Sent email status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending email status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**📧 EMAIL: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "calendar":
+                            # Handle calendar status
+                            try:
+                                await calendar_status(title, content, icon)
+                                logger.info(f"Sent calendar status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending calendar status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**📅 CALENDAR: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "web-search":
+                            # Handle web search status
+                            try:
+                                await web_search_status(title, content, icon)
+                                logger.info(f"Sent web search status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending web search status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**🔍 WEB SEARCH: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "file-system":
+                            # Handle file system status
+                            try:
+                                await file_system_status(title, content, icon)
+                                logger.info(f"Sent file system status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending file system status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**📁 FILE SYSTEM: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "database":
+                            # Handle database status
+                            try:
+                                await database_status(title, content, icon)
+                                logger.info(f"Sent database status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending database status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**🗄️ DATABASE: {title}**\n{content}")
+                                await msg.send()
+                        
+                        elif update_type == "api":
+                            # Handle API status
+                            try:
+                                await api_status(title, content, icon)
+                                logger.info(f"Sent API status: {title}")
+                            except Exception as e:
+                                logger.error(f"Error sending API status: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**🔌 API: {title}**\n{content}")
+                                await msg.send()
+                        
+                        else:
+                            # For other status types, use a custom element
+                            try:
+                                element = cl.CustomElement(
+                                    name="StatusUpdate",
+                                    props={
+                                        "type": update_type,
+                                        "title": title,
+                                        "message": content,
+                                        "icon": icon
+                                    }
+                                )
+                                msg = cl.Message(content="", elements=[element])
+                                await msg.send()
+                                logger.info(f"Sent custom status update: {update_type}")
+                            except Exception as e:
+                                logger.error(f"Error sending custom status update: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**{update_type.upper()}: {title}**\n{content}")
+                                await msg.send()
+                        
+                        logger.info(f"Successfully processed status update: {update}")
+                    except Exception as e:
+                        logger.error(f"Error processing status update: {str(e)}", exc_info=True)
+                        # Don't try to send an error message as it might fail for the same reason
+            except Exception as e:
+                logger.error(f"Error in status update processing loop: {str(e)}", exc_info=True)
+            
+            # Sleep to avoid high CPU usage
+            await asyncio.sleep(0.1)
+        
+        logger.info("Status update processing task stopped")
+    
+    # Start the background task
+    asyncio.create_task(process_status_updates())
+    logger.info("Started background task to process status updates")
     
     # Generate a unique session ID
     session_id = str(uuid.uuid4())
@@ -383,25 +710,16 @@ async def on_message(message: cl.Message):
         print(f"Current session settings - provider: {provider}, model: {model_id}")
         logger.info(f"Current session settings - provider: {provider}, model: {model_id}")
         
-        # Show processing status with task list
-        task_list = StyledTaskList("Processing Request", "Initializing...")
-        await task_list.send()
-        
-        # Add initial task
-        request_task = await task_list.add_task("Sending request to AI service", "Preparing to send request", "waiting")
-        
-        # Update task status to running
-        await task_list.update_task(request_task["id"], "running", "Sending request to AI service...")
+        # Create a simple "thinking" message instead of a task list
+        thinking_msg = cl.Message(content="Thinking...", author="Assistant")
+        await thinking_msg.send()
         
         # Measure response time
         start_time = time.time()
         
         # Make the API call to n8n
         try:
-            # Update task list status
-            task_list.status = "Processing request..."
-            await task_list.send()
-            
+            # Make the request to n8n
             response = make_n8n_request(payload)
             
             # Calculate and log response time
@@ -409,12 +727,8 @@ async def on_message(message: cl.Message):
             response_time = end_time - start_time
             logger.info(f"n8n response received in {response_time:.2f} seconds")
             
-            # Update task status to done
-            await task_list.update_task(request_task["id"], "done", f"Request processed in {response_time:.2f} seconds")
-            
-            # Add response processing task
-            response_task = await task_list.add_task("Processing response", "Preparing to process response", "waiting")
-            await task_list.update_task(response_task["id"], "running", "Processing response...")
+            # Remove the thinking message
+            await thinking_msg.remove()
             
             # Process the response
             if response:
@@ -439,153 +753,87 @@ async def on_message(message: cl.Message):
                             await database_status("Database Action", action_message)
                         elif action_type == "api":
                             await api_status("API Action", action_message)
+                        
+                        # Show appropriate status update based on action status
+                        if action_status == "success":
+                            await success_status(f"{action_type.title()} Success", action_message)
+                        elif action_status == "warning":
+                            await warning_status(f"{action_type.title()} Warning", action_message)
+                        elif action_status == "error":
+                            await error_status(f"{action_type.title()} Error", action_message)
+                        elif action_status == "info":
+                            await info_status(f"{action_type.title()} Info", action_message)
                 
-                # Update task status to done
-                await task_list.update_task(response_task["id"], "done", "Response processed successfully")
-                
-                # Update task list status
-                task_list.status = "Request completed successfully"
-                await task_list.send()
-                
-                # Check if the response is a dictionary with an 'output' field
-                if isinstance(response, dict) and "output" in response:
-                    # Send the response to the user
-                    await cl.Message(content=response["output"], author="Assistant").send()
+                # Process the main response
+                if isinstance(response, list) and len(response) > 0:
+                    for item in response:
+                        if isinstance(item, dict):
+                            # Extract the output text
+                            output = item.get("output", "")
+                            
+                            # Extract any elements (images, files, etc.)
+                            elements = item.get("elements", [])
+                            
+                            # Create a message with the output and elements
+                            if output or elements:
+                                await cl.Message(
+                                    content=output,
+                                    elements=elements,
+                                    author="Assistant"
+                                ).send()
+                            
+                            # Extract and process any metadata
+                            metadata = item.get("metadata", {})
+                            if metadata:
+                                # Process any specific metadata fields here
+                                pass
+                        else:
+                            # If the item is not a dict, just send it as a string
+                            await cl.Message(content=str(item), author="Assistant").send()
+                elif isinstance(response, dict):
+                    # Extract the output text
+                    output = response.get("output", "")
                     
-                    # Show success toast
-                    await show_toast("Response received successfully", "success")
-                # Check if the response is a list with at least one item
-                elif isinstance(response, list) and len(response) > 0:
-                    # Get the first response
-                    first_response = response[0]
+                    # Extract any elements (images, files, etc.)
+                    elements = response.get("elements", [])
                     
-                    # Check if the response has the expected format
-                    if "content" in first_response:
-                        # Send the response to the user
-                        await cl.Message(content=first_response["content"], author="Assistant").send()
-                        
-                        # Show success toast
-                        await show_toast("Response received successfully", "success")
-                    elif "output" in first_response:
-                        # Send the response to the user
-                        await cl.Message(content=first_response["output"], author="Assistant").send()
-                        
-                        # Show success toast
-                        await show_toast("Response received successfully", "success")
-                    else:
-                        # Log the unexpected response format
-                        logger.warning(f"Unexpected response format: {first_response}")
-                        print(f"Unexpected response format: {first_response}")
-                        
-                        # Show warning status
-                        await warning_status(
-                            "Unexpected Response Format", 
-                            "The response from the AI service has an unexpected format."
-                        )
-                        
-                        # Send a generic message to the user
+                    # Create a message with the output and elements
+                    if output or elements:
                         await cl.Message(
-                            content="I received a response in an unexpected format. Please try again.",
+                            content=output,
+                            elements=elements,
                             author="Assistant"
                         ).send()
-                        
-                        # Update task status to failed
-                        await task_list.update_task(response_task["id"], "failed", "Unexpected response format")
-                        
-                        # Update task list status
-                        task_list.status = "Request completed with warnings"
-                        await task_list.send()
                 else:
-                    # Log the empty response
-                    logger.warning(f"Empty response from n8n: {response}")
-                    print(f"Empty response from n8n: {response}")
-                    
-                    # Show error status
-                    await error_status(
-                        "Empty Response", 
-                        "The AI service returned an empty response."
-                    )
-                    
-                    # Send an error message to the user
-                    await cl.Message(
-                        content="I didn't receive a proper response from the AI service. Please try again.",
-                        author="Assistant"
-                    ).send()
-                    
-                    # Update task status to failed
-                    await task_list.update_task(response_task["id"], "failed", "Empty response")
-                    
-                    # Update task list status
-                    task_list.status = "Request failed"
-                    await task_list.send()
+                    # If the response is not a list or dict, just send it as a string
+                    await cl.Message(content=str(response), author="Assistant").send()
             else:
-                # Log the empty response
-                logger.warning("No response from n8n")
-                print("No response from n8n")
-                
-                # Show error status
-                await error_status(
-                    "No Response", 
-                    "No response was received from the AI service."
-                )
-                
-                # Send an error message to the user
+                # Handle empty response
                 await cl.Message(
-                    content="I didn't receive a response from the AI service. Please try again.",
-                    author="Assistant"
+                    content="I'm sorry, I didn't receive a response from the backend. Please try again.",
+                    author="System"
                 ).send()
-                
-                # Update task status to failed
-                await task_list.update_task(response_task["id"], "failed", "No response received")
-                
-                # Update task list status
-                task_list.status = "Request failed"
-                await task_list.send()
         except Exception as e:
-            # Log the exception
-            logger.error(f"Error making request to n8n: {str(e)}")
-            print(f"Error making request to n8n: {str(e)}")
+            logger.error(f"Error making n8n request: {str(e)}", exc_info=True)
             
-            # Show error status
-            await error_status(
-                "Request Error", 
-                f"An error occurred while making the request: {str(e)}"
-            )
+            # Remove the thinking message
+            await thinking_msg.remove()
             
-            # Send an error message to the user
+            # Send an error message
             await cl.Message(
-                content=f"An error occurred while processing your request: {str(e)}",
-                author="System"
+                content=f"I'm sorry, there was an error processing your request: {str(e)}",
+                author="System",
+                type="error"
             ).send()
-            
-            # Update task status to failed
-            await task_list.update_task(request_task["id"], "failed", f"Error: {str(e)}")
-            
-            # Update task list status
-            task_list.status = "Request failed"
-            await task_list.send()
-            
-            # Show error toast
-            await show_toast("Error processing request", "error")
     except Exception as e:
-        # Log the exception
-        logger.error(f"Error in on_message: {str(e)}")
-        print(f"Error in on_message: {str(e)}")
+        logger.error(f"Error in on_message: {str(e)}", exc_info=True)
         
-        # Show error status
-        await error_status(
-            "System Error", 
-            f"An unexpected error occurred: {str(e)}"
-        )
-        
-        # Send an error message to the user
+        # Send an error message
         await cl.Message(
-            content=f"An unexpected error occurred: {str(e)}",
-            author="System"
+            content=f"I'm sorry, there was an error processing your message: {str(e)}",
+            author="System",
+            type="error"
         ).send()
-        
-        # Show error toast
-        await show_toast("Unexpected error occurred", "error")
 
 def make_n8n_request(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
@@ -651,8 +899,15 @@ def make_n8n_request(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 @cl.on_chat_end
 async def on_chat_end():
-    """Clean up resources when the chat session ends."""
-    logger.info("Chat session ended")
+    """
+    Clean up when the chat session ends.
+    
+    This function is called when a chat session ends.
+    It cleans up any resources used by the chat session.
+    """
+    # Stop the background task
+    cl.user_session.set("process_status_updates", False)
+    logger.info("Stopped background task for processing status updates")
 
 @cl.password_auth_callback
 def auth_callback(username: str, password: str) -> Optional[cl.User]:

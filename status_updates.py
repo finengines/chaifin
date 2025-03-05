@@ -8,6 +8,7 @@ progress indicators, and alerts in the Chainlit UI.
 import chainlit as cl
 from typing import Optional, Dict, Any, List, Union
 import asyncio
+import logging
 
 # ===== AGENT ACTION STATUS UPDATES =====
 
@@ -397,12 +398,13 @@ class StyledTaskList:
     A styled task list for displaying multiple tasks with status indicators.
     """
     
-    def __init__(self, title: str = "Processing Tasks"):
+    def __init__(self, title: str = "Processing Tasks", **kwargs):
         """
         Initialize a new styled task list.
         
         Args:
             title: The title of the task list
+            **kwargs: Additional keyword arguments to pass to the TaskList constructor
         """
         self.title = title
         self.tasks = {}
@@ -412,7 +414,7 @@ class StyledTaskList:
         """Create and display the task list."""
         await self.task_list.send()
     
-    async def add_task(self, name: str, status: str = "running", icon: Optional[str] = None) -> None:
+    async def add_task(self, name: str, status: str = "running", icon: Optional[str] = None) -> cl.Task:
         """
         Add a task to the list.
         
@@ -420,6 +422,9 @@ class StyledTaskList:
             name: The name of the task
             status: The status of the task (running, done, error)
             icon: Optional icon name
+            
+        Returns:
+            The created task object
         """
         # Convert string status to TaskStatus enum
         task_status = self._get_task_status(status)
@@ -430,6 +435,8 @@ class StyledTaskList:
         
         # Store the task for later reference
         self.tasks[name] = task
+        
+        return task
     
     async def update_task(self, name: str, status: str, icon: Optional[str] = None) -> None:
         """
@@ -468,8 +475,41 @@ async def show_toast(message: str, type: str = "info", duration: int = 3000) -> 
         type: The type of notification (info, success, warning, error)
         duration: Duration in milliseconds
     """
-    await cl.Message(
-        content=message,
-        author="notification",
-        type=type
-    ).send() 
+    try:
+        # In Chainlit 2.2.1, toast notifications can be sent using the notify method
+        # or by creating a message with a specific type
+        
+        # Method 1: Using cl.notify
+        await cl.notify(
+            message=message,
+            type=type,
+            duration=duration
+        )
+        
+        # Method 2: As a fallback, also try sending as a regular message with toast class
+        # This creates a custom element that mimics a toast notification
+        element = cl.CustomElement(
+            name="Toast",
+            props={
+                "message": message,
+                "type": type,
+                "duration": duration
+            }
+        )
+        
+        # Create a message with the toast element
+        msg = cl.Message(content="", elements=[element])
+        await msg.send()
+        
+        logging.info(f"Toast notification sent: {message}")
+    except Exception as e:
+        logging.error(f"Error sending toast notification: {str(e)}")
+        
+        # Fallback method if the above methods fail
+        try:
+            # Create a simple message with the toast content
+            msg = cl.Message(content=f"**{type.upper()}**: {message}")
+            await msg.send()
+            logging.info(f"Sent fallback toast message: {message}")
+        except Exception as e2:
+            logging.error(f"Error sending fallback toast message: {str(e2)}") 
