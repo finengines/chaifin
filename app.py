@@ -14,6 +14,27 @@ import chainlit as cl
 # Import configuration
 import config
 
+# Import status updates
+from status_updates import (
+    web_search_status,
+    email_status,
+    calendar_status,
+    file_system_status,
+    database_status,
+    api_status,
+    progress_status,
+    success_status,
+    warning_status,
+    error_status,
+    info_status,
+    important_alert,
+    notification_alert,
+    system_alert,
+    animated_progress,
+    StyledTaskList,
+    show_toast
+)
+
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
@@ -362,15 +383,25 @@ async def on_message(message: cl.Message):
         print(f"Current session settings - provider: {provider}, model: {model_id}")
         logger.info(f"Current session settings - provider: {provider}, model: {model_id}")
         
-        # Show thinking indicator
-        thinking_msg = cl.Message(content="Thinking...", author="Assistant")
-        await thinking_msg.send()
+        # Show processing status with task list
+        task_list = StyledTaskList("Processing Request", "Initializing...")
+        await task_list.send()
+        
+        # Add initial task
+        request_task = await task_list.add_task("Sending request to AI service", "Preparing to send request", "waiting")
+        
+        # Update task status to running
+        await task_list.update_task(request_task["id"], "running", "Sending request to AI service...")
         
         # Measure response time
         start_time = time.time()
         
         # Make the API call to n8n
         try:
+            # Update task list status
+            task_list.status = "Processing request..."
+            await task_list.send()
+            
             response = make_n8n_request(payload)
             
             # Calculate and log response time
@@ -378,15 +409,51 @@ async def on_message(message: cl.Message):
             response_time = end_time - start_time
             logger.info(f"n8n response received in {response_time:.2f} seconds")
             
-            # Remove the thinking message
-            await thinking_msg.remove()
+            # Update task status to done
+            await task_list.update_task(request_task["id"], "done", f"Request processed in {response_time:.2f} seconds")
+            
+            # Add response processing task
+            response_task = await task_list.add_task("Processing response", "Preparing to process response", "waiting")
+            await task_list.update_task(response_task["id"], "running", "Processing response...")
             
             # Process the response
             if response:
+                # Check for agent actions in the response
+                if isinstance(response, dict) and "actions" in response:
+                    actions = response["actions"]
+                    for action in actions:
+                        action_type = action.get("type", "").lower()
+                        action_status = action.get("status", "").lower()
+                        action_message = action.get("message", "")
+                        
+                        # Show appropriate status update based on action type
+                        if action_type == "web_search":
+                            await web_search_status("Web Search", action_message)
+                        elif action_type == "email":
+                            await email_status("Email Action", action_message)
+                        elif action_type == "calendar":
+                            await calendar_status("Calendar Action", action_message)
+                        elif action_type == "file_system":
+                            await file_system_status("File System Action", action_message)
+                        elif action_type == "database":
+                            await database_status("Database Action", action_message)
+                        elif action_type == "api":
+                            await api_status("API Action", action_message)
+                
+                # Update task status to done
+                await task_list.update_task(response_task["id"], "done", "Response processed successfully")
+                
+                # Update task list status
+                task_list.status = "Request completed successfully"
+                await task_list.send()
+                
                 # Check if the response is a dictionary with an 'output' field
                 if isinstance(response, dict) and "output" in response:
                     # Send the response to the user
                     await cl.Message(content=response["output"], author="Assistant").send()
+                    
+                    # Show success toast
+                    await show_toast("Response received successfully", "success")
                 # Check if the response is a list with at least one item
                 elif isinstance(response, list) and len(response) > 0:
                     # Get the first response
@@ -396,25 +463,129 @@ async def on_message(message: cl.Message):
                     if "content" in first_response:
                         # Send the response to the user
                         await cl.Message(content=first_response["content"], author="Assistant").send()
+                        
+                        # Show success toast
+                        await show_toast("Response received successfully", "success")
                     elif "output" in first_response:
                         # Send the response to the user
                         await cl.Message(content=first_response["output"], author="Assistant").send()
+                        
+                        # Show success toast
+                        await show_toast("Response received successfully", "success")
                     else:
-                        logger.error(f"Unexpected response format: {first_response}")
-                        await cl.Message(content="I received an unexpected response format. Please try again.", author="Assistant").send()
+                        # Log the unexpected response format
+                        logger.warning(f"Unexpected response format: {first_response}")
+                        print(f"Unexpected response format: {first_response}")
+                        
+                        # Show warning status
+                        await warning_status(
+                            "Unexpected Response Format", 
+                            "The response from the AI service has an unexpected format."
+                        )
+                        
+                        # Send a generic message to the user
+                        await cl.Message(
+                            content="I received a response in an unexpected format. Please try again.",
+                            author="Assistant"
+                        ).send()
+                        
+                        # Update task status to failed
+                        await task_list.update_task(response_task["id"], "failed", "Unexpected response format")
+                        
+                        # Update task list status
+                        task_list.status = "Request completed with warnings"
+                        await task_list.send()
                 else:
-                    logger.error(f"Empty or invalid response: {response}")
-                    await cl.Message(content="I didn't receive a valid response. Please try again.", author="Assistant").send()
+                    # Log the empty response
+                    logger.warning(f"Empty response from n8n: {response}")
+                    print(f"Empty response from n8n: {response}")
+                    
+                    # Show error status
+                    await error_status(
+                        "Empty Response", 
+                        "The AI service returned an empty response."
+                    )
+                    
+                    # Send an error message to the user
+                    await cl.Message(
+                        content="I didn't receive a proper response from the AI service. Please try again.",
+                        author="Assistant"
+                    ).send()
+                    
+                    # Update task status to failed
+                    await task_list.update_task(response_task["id"], "failed", "Empty response")
+                    
+                    # Update task list status
+                    task_list.status = "Request failed"
+                    await task_list.send()
             else:
-                logger.error("No response received from n8n")
-                await cl.Message(content="I didn't receive a response. Please try again.", author="Assistant").send()
+                # Log the empty response
+                logger.warning("No response from n8n")
+                print("No response from n8n")
+                
+                # Show error status
+                await error_status(
+                    "No Response", 
+                    "No response was received from the AI service."
+                )
+                
+                # Send an error message to the user
+                await cl.Message(
+                    content="I didn't receive a response from the AI service. Please try again.",
+                    author="Assistant"
+                ).send()
+                
+                # Update task status to failed
+                await task_list.update_task(response_task["id"], "failed", "No response received")
+                
+                # Update task list status
+                task_list.status = "Request failed"
+                await task_list.send()
         except Exception as e:
-            logger.error(f"Error making n8n request: {str(e)}")
-            await thinking_msg.remove()
-            await cl.Message(content=f"Error: {str(e)}", author="Assistant").send()
+            # Log the exception
+            logger.error(f"Error making request to n8n: {str(e)}")
+            print(f"Error making request to n8n: {str(e)}")
+            
+            # Show error status
+            await error_status(
+                "Request Error", 
+                f"An error occurred while making the request: {str(e)}"
+            )
+            
+            # Send an error message to the user
+            await cl.Message(
+                content=f"An error occurred while processing your request: {str(e)}",
+                author="System"
+            ).send()
+            
+            # Update task status to failed
+            await task_list.update_task(request_task["id"], "failed", f"Error: {str(e)}")
+            
+            # Update task list status
+            task_list.status = "Request failed"
+            await task_list.send()
+            
+            # Show error toast
+            await show_toast("Error processing request", "error")
     except Exception as e:
+        # Log the exception
         logger.error(f"Error in on_message: {str(e)}")
-        await cl.Message(content=f"An error occurred: {str(e)}", author="System").send()
+        print(f"Error in on_message: {str(e)}")
+        
+        # Show error status
+        await error_status(
+            "System Error", 
+            f"An unexpected error occurred: {str(e)}"
+        )
+        
+        # Send an error message to the user
+        await cl.Message(
+            content=f"An unexpected error occurred: {str(e)}",
+            author="System"
+        ).send()
+        
+        # Show error toast
+        await show_toast("Unexpected error occurred", "error")
 
 def make_n8n_request(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     """

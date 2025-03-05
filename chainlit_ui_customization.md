@@ -9,6 +9,7 @@ This guide provides a comprehensive overview of UI customization options in Chai
 3. [Custom Buttons & Toggles](#custom-buttons--toggles)
 4. [Webhook Data & Backend Routing](#webhook-data--backend-routing)
 5. [Theme Customization](#theme-customization)
+6. [Custom Elements Implementation](#custom-elements-implementation)
 
 ## Status Updates & Progress Indicators
 
@@ -435,6 +436,176 @@ document.addEventListener('DOMContentLoaded', () => {
   const observer = new MutationObserver(enhanceTaskList);
   observer.observe(document.body, { childList: true, subtree: true });
 });
+```
+
+## Custom Elements Implementation
+
+Chainlit allows you to create custom UI elements using JSX. This is a powerful feature that enables you to build rich, interactive components for your application.
+
+### Creating Custom Elements
+
+1. **Create a JSX file**: Place your JSX file in the `public/elements/` directory. The filename should match the name you'll use in your Python code.
+
+```jsx
+// public/elements/StatusUpdate.jsx
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+
+export default function StatusUpdate() {
+  // Get the type from props to determine styling
+  const type = props.type || "info";
+  const icon = props.icon || "info";
+  const title = props.title || "";
+  const message = props.message || "";
+  const progress = props.progress || null;
+  
+  // Define class names based on type
+  const getTypeClass = () => {
+    switch(type) {
+      case "email": return "status-email";
+      case "calendar": return "status-calendar";
+      case "web-search": return "status-web-search";
+      default: return "status-info";
+    }
+  };
+  
+  return (
+    <Card className={`status-update ${getTypeClass()} border-0 my-4`}>
+      <CardContent className="p-4 flex items-start">
+        <div className="status-update-icon mr-4 mt-1">
+          <i data-lucide={icon}></i>
+        </div>
+        <div className="flex-1">
+          <h4 className="text-base font-semibold mb-1">{title}</h4>
+          <p className="text-sm opacity-90">{message}</p>
+          {progress !== null && (
+            <div className="mt-3">
+              <Progress value={progress} className="h-2" />
+            </div>
+          )}
+        </div>
+        <Badge variant="outline" className="ml-2 capitalize">
+          {type.replace('-', ' ')}
+        </Badge>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+2. **Use the custom element in your Python code**:
+
+```python
+import chainlit as cl
+
+async def email_status(title: str, message: str, icon: str = "mail") -> cl.Message:
+    """
+    Display an email agent status update.
+    
+    Args:
+        title: The title of the status update
+        message: The message content
+        icon: Lucide icon name (default: "mail")
+        
+    Returns:
+        The sent message object
+    """
+    element = cl.CustomElement(
+        name="StatusUpdate",
+        props={
+            "type": "email",
+            "icon": icon,
+            "title": title,
+            "message": message
+        }
+    )
+    msg = cl.Message(content="", elements=[element])
+    return await msg.send()
+```
+
+### Important Notes for Custom Elements
+
+1. **Props are globally injected**: In your JSX file, props are globally injected, not passed as function arguments. Never define your component with props as a parameter:
+
+```jsx
+// CORRECT
+export default function MyComponent() {
+  const myProp = props.myProp || "default";
+  // ...
+}
+
+// INCORRECT - Don't do this
+export default function MyComponent(props) {
+  const myProp = props.myProp || "default";
+  // ...
+}
+```
+
+2. **Use Shadcn UI components**: Chainlit provides access to Shadcn UI components, which you can import and use in your custom elements:
+
+```jsx
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+```
+
+3. **Use Tailwind for styling**: Chainlit supports Tailwind CSS for styling your custom elements:
+
+```jsx
+<div className="flex items-center justify-between p-4 bg-primary-100 rounded-md">
+  {/* Component content */}
+</div>
+```
+
+4. **Update element props**: You can update a custom element's props from your Python code:
+
+```python
+import chainlit as cl
+
+@cl.on_chat_start
+async def start():
+    element = cl.CustomElement(name="StatusUpdate", props={"type": "info", "title": "Initial Title"})
+    cl.user_session.set("status_element", element)
+    await cl.Message(content="", elements=[element]).send()
+
+@cl.on_message
+async def on_message(message: cl.Message):
+    element = cl.user_session.get("status_element")
+    element.props["title"] = "Updated Title"
+    element.props["progress"] = 75
+    await element.update()
+```
+
+### Styling Custom Elements
+
+You can style your custom elements using a combination of Tailwind classes and custom CSS:
+
+1. **Tailwind classes**: Apply Tailwind classes directly in your JSX:
+
+```jsx
+<div className="bg-blue-100 p-4 rounded-lg shadow-md hover:shadow-lg transition-all">
+  {/* Content */}
+</div>
+```
+
+2. **Custom CSS**: Define custom styles in your `custom.css` file:
+
+```css
+.status-update {
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transition: all 0.3s ease;
+}
+
+.status-email {
+  background: linear-gradient(135deg, rgba(79, 195, 247, 0.2), rgba(79, 195, 247, 0.05));
+  border-left: 5px solid #4fc3f7;
+}
 ```
 
 ## Conclusion
