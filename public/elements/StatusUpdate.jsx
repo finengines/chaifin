@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { useEffect, useState } from "react"
 
 export default function StatusUpdate() {
   // Get props with defaults
@@ -9,6 +10,15 @@ export default function StatusUpdate() {
   const title = props.title || "";
   const message = props.message || "";
   const progress = props.progress || null;
+  
+  // State for animation
+  const [isVisible, setIsVisible] = useState(false);
+  
+  // Animate on mount
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
   
   // Define class names based on type
   const getTypeClass = () => {
@@ -30,8 +40,11 @@ export default function StatusUpdate() {
   
   // Get icon animation class
   const getIconClass = () => {
-    if (type === "progress" || type === "running") return "animate-spin";
-    if (type === "warning" || type === "error") return "animate-pulse";
+    if (type === "progress") return "animate-spin";
+    if (type === "warning") return "animate-pulse";
+    if (type === "error") return "animate-pulse";
+    if (type === "email") return "animate-bounce-subtle";
+    if (type === "api") return "animate-pulse-slow";
     return "";
   };
   
@@ -53,8 +66,28 @@ export default function StatusUpdate() {
     }
   };
   
+  // Get badge variant
+  const getBadgeVariant = () => {
+    switch(type) {
+      case "email": return "email";
+      case "calendar": return "calendar";
+      case "web-search": return "web-search";
+      case "file-system": return "file-system";
+      case "database": return "database";
+      case "api": return "api";
+      case "progress": return "progress";
+      case "success": return "success";
+      case "warning": return "warning";
+      case "error": return "error";
+      case "info": 
+      default: return "info";
+    }
+  };
+  
   return (
-    <Card className={`status-update ${getTypeClass()} my-4 border shadow-sm`}>
+    <Card 
+      className={`status-update ${getTypeClass()} my-4 border shadow-sm ${isVisible ? 'status-visible' : 'status-hidden'}`}
+    >
       <CardContent className="p-4">
         <div className="status-update-content flex items-start gap-3">
           <div className={`status-update-icon flex-shrink-0 ${getIconClass()}`}>
@@ -65,12 +98,20 @@ export default function StatusUpdate() {
             <p className="status-update-message text-sm text-muted-foreground">{message}</p>
             {progress !== null && (
               <div className="mt-3">
-                <Progress value={progress} className="h-2" />
-                <span className="text-xs text-muted-foreground mt-1 inline-block">{progress}%</span>
+                <Progress value={progress} className={`h-2 progress-${type}`} />
+                <div className="flex justify-between mt-1">
+                  <span className="text-xs text-muted-foreground">{progress}%</span>
+                  {progress < 100 && (
+                    <span className="text-xs text-muted-foreground">Processing...</span>
+                  )}
+                  {progress === 100 && (
+                    <span className="text-xs text-success">Complete</span>
+                  )}
+                </div>
               </div>
             )}
           </div>
-          <Badge variant="outline" className="status-update-badge flex-shrink-0">
+          <Badge variant={getBadgeVariant()} className={`status-badge badge-${type} flex-shrink-0`}>
             {getBadgeText()}
           </Badge>
         </div>
