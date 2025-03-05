@@ -1,0 +1,100 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "seconds"
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate a random status update type\nconst types = [\n  'progress',\n  'success',\n  'warning',\n  'error',\n  'info',\n  'email',\n  'calendar',\n  'web-search',\n  'file-system',\n  'database',\n  'api'\n];\n\n// Get a random type\nconst randomType = types[Math.floor(Math.random() * types.length)];\n\n// Generate progress percentage if it's a progress type\nlet progress = null;\nif (randomType === 'progress') {\n  progress = Math.floor(Math.random() * 100);\n}\n\n// Create a title based on the type\nlet title = '';\nswitch (randomType) {\n  case 'progress':\n    title = 'Processing Data';\n    break;\n  case 'success':\n    title = 'Task Completed';\n    break;\n  case 'warning':\n    title = 'Warning';\n    break;\n  case 'error':\n    title = 'Error Occurred';\n    break;\n  case 'info':\n    title = 'Information';\n    break;\n  case 'email':\n    title = 'Email Status';\n    break;\n  case 'calendar':\n    title = 'Calendar Event';\n    break;\n  case 'web-search':\n    title = 'Search Results';\n    break;\n  case 'file-system':\n    title = 'File Operation';\n    break;\n  case 'database':\n    title = 'Database Operation';\n    break;\n  case 'api':\n    title = 'API Request';\n    break;\n  default:\n    title = 'Status Update';\n}\n\n// Create a message based on the type\nlet content = '';\nswitch (randomType) {\n  case 'progress':\n    content = `Processing data... ${progress}% complete`;\n    break;\n  case 'success':\n    content = 'The task has been completed successfully!';\n    break;\n  case 'warning':\n    content = 'This operation might take longer than expected.';\n    break;\n  case 'error':\n    content = 'Failed to connect to the database.';\n    break;\n  case 'info':\n    content = 'The system will be updated tomorrow.';\n    break;\n  case 'email':\n    content = 'Your email to john@example.com has been sent.';\n    break;\n  case 'calendar':\n    content = 'Team meeting scheduled for tomorrow at 10:00 AM.';\n    break;\n  case 'web-search':\n    content = 'Found 5 results for your query.';\n    break;\n  case 'file-system':\n    content = 'File uploaded successfully.';\n    break;\n  case 'database':\n    content = 'Database backup completed.';\n    break;\n  case 'api':\n    content = 'API request processed successfully.';\n    break;\n  default:\n    content = 'Status update message';\n}\n\n// Create the payload\nconst payload = {\n  type: randomType,\n  title: title,\n  content: content\n};\n\n// Add progress if it's a progress type\nif (progress !== null) {\n  payload.progress = progress;\n}\n\nreturn [{ json: payload }];"
+      },
+      "id": "2",
+      "name": "Generate Random Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5679/status",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "={{ $json.type }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "name": "progress",
+              "value": "={{ $json.progress }}"
+            }
+          ]
+        }
+      },
+      "id": "3",
+      "name": "Send Status Update",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Random Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Random Status": {
+      "main": [
+        [
+          {
+            "node": "Send Status Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "name": "Status Updates Demo",
+  "description": "Demonstrates sending status updates to the webhook server"
+} 

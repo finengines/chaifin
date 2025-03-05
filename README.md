@@ -37,20 +37,39 @@ This project provides a Chainlit-based frontend UI for a personal assistant, wit
 
 ```
 ChainFin/
-├── app.py                     # Main application file
-├── config.py                  # Configuration settings
-├── requirements.txt           # Dependencies
-├── README.md                  # Documentation
-├── .env                       # Environment variables (create from .env.example)
-├── .env.example               # Example environment variables
-├── chainlit.md                # Welcome screen content
-├── status_updates.py          # Status updates module
-├── status_webhook_server.py   # Status webhook server
-├── test_status_webhook.py     # Test script for status webhook
-├── n8n_integration_example.py # n8n integration example
-├── README_STATUS_WEBHOOK.md   # Status webhook documentation
-└── .chainlit/                 # Chainlit configuration
-    └── config.json            # Chainlit UI configuration
+├── app.py                         # Main application file
+├── config.py                      # Configuration settings
+├── status_updates.py              # Status updates module
+├── status_webhook_integration.py  # Webhook integration module
+├── requirements.txt               # Dependencies
+├── README.md                      # Documentation
+├── chainlit.md                    # Welcome screen content
+├── .env                           # Environment variables (create from .env.example)
+├── .env.example                   # Example environment variables
+├── .chainlit/                     # Chainlit configuration
+│   ├── config.toml                # Chainlit configuration
+│   └── custom.js                  # Custom JavaScript for UI enhancements
+├── docs/                          # Documentation files
+│   ├── README_STATUS_WEBHOOK.md   # Status webhook documentation
+│   ├── WEBHOOK_INTEGRATION.md     # Webhook integration guide
+│   ├── WEBHOOK_FIXES.md           # Webhook fixes documentation
+│   └── ...                        # Other documentation files
+├── tests/                         # Test scripts
+│   ├── test_all_notifications.py  # Test all notification types
+│   ├── test_webhook.py            # Test webhook functionality
+│   ├── diagnose_webhook.py        # Webhook diagnostic tool
+│   └── ...                        # Other test scripts
+├── examples/                      # Example code and demos
+│   ├── n8n_integration_example.py # n8n integration example
+│   ├── example_webhook.py         # Webhook usage example
+│   └── ...                        # Other example files
+├── scripts/                       # Utility scripts
+│   ├── status_webhook_server.py   # Standalone webhook server
+│   ├── start.sh                   # Start script for Unix/Mac
+│   ├── start.bat                  # Start script for Windows
+│   └── ...                        # Other utility scripts
+└── logs/                          # Log files
+    └── chainlit_app.log           # Application logs
 ```
 
 ## Installation
@@ -121,6 +140,24 @@ curl -X POST http://localhost:5679/status \
   -d '{"type": "success", "title": "Task Completed", "content": "The task has been completed successfully!"}'
 ```
 
+### Running the Standalone Webhook Server
+
+If you want to run the webhook server separately from the Chainlit application, you can use the provided script:
+
+```bash
+python scripts/status_webhook_server.py
+```
+
+Or use the convenience scripts:
+
+```bash
+# On Unix/Mac
+./scripts/start_status_webhook.sh
+
+# On Windows
+scripts\start_status_webhook.bat
+```
+
 ### Supported Status Update Types
 
 - `progress`: Shows a progress bar with percentage
@@ -135,13 +172,15 @@ curl -X POST http://localhost:5679/status \
 
 The repository includes several tools to help you test and diagnose the status webhook server:
 
-1. **Test Script**: Run `python test_status_webhook.py --demo` to send various types of status updates to the webhook server.
+1. **Test Script**: Run `python tests/test_status_webhook.py --demo` to send various types of status updates to the webhook server.
 
-2. **Diagnostic Script**: Run `python diagnose_webhook.py` to check if the webhook server is running correctly and diagnose any issues.
+2. **Diagnostic Script**: Run `python tests/diagnose_webhook.py` to check if the webhook server is running correctly and diagnose any issues.
 
 3. **Health Check**: Access `http://localhost:5679/health` in your browser to check the status of the webhook server.
 
-For more detailed information, see the [Status Webhook Documentation](README_STATUS_WEBHOOK.md) and [Webhook Integration Fixes](WEBHOOK_FIXES.md).
+4. **Comprehensive Testing**: Run `python tests/test_all_notifications.py --all` to test all notification types.
+
+For more detailed information, see the [Status Webhook Documentation](docs/README_STATUS_WEBHOOK.md) and [Webhook Integration Fixes](docs/WEBHOOK_FIXES.md).
 
 ### Notification System Improvements
 

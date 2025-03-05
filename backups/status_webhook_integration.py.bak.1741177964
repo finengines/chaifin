@@ -1,0 +1,206 @@
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import logging
+import json
+import os
+import threading
+import time
+import queue
+import traceback
+from typing import Dict, Any, List, Union, Optional
+import asyncio
+import uvicorn
+from pydantic import BaseModel
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+logger = logging.getLogger("status_webhook")
+
+# Create a thread-safe queue for status updates that can be accessed from other modules
+# Using queue.Queue instead of a list for thread safety
+STATUS_QUEUE = queue.Queue()
+
+# Flag to indicate if the webhook server is running
+WEBHOOK_SERVER_RUNNING = False
+
+# Flag to indicate if the Chainlit application is processing updates
+CHAINLIT_PROCESSING_ACTIVE = False
+
+# Status update types
+STATUS_TYPES = [
+    "progress", "success", "warning", "error", "info",
+    "email", "calendar", "web-search", "file-system", 
+    "database", "api", "important-alert", "notification-alert", 
+    "system-alert", "toast"
+]
+
+# Create a FastAPI app
+app = FastAPI(title="Status Webhook Server")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Set the webhook server running flag to True when the app starts
+@app.on_event("startup")
+async def startup_event():
+    """Set the webhook server running flag to True when the app starts"""
+    global WEBHOOK_SERVER_RUNNING
+    WEBHOOK_SERVER_RUNNING = True
+    logger.info("Webhook server startup event triggered, set WEBHOOK_SERVER_RUNNING to True")
+
+# Set the webhook server running flag to False when the app shuts down
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Set the webhook server running flag to False when the app shuts down"""
+    global WEBHOOK_SERVER_RUNNING
+    WEBHOOK_SERVER_RUNNING = False
+    logger.info("Webhook server shutdown event triggered, set WEBHOOK_SERVER_RUNNING to False")
+
+# Webhook endpoint to receive status updates
+@app.post("/status")
+async def status_webhook(request: Request):
+    """Receive status updates from external sources"""
+    try:
+        # Get the request body
+        body = await request.body()
+        
+        # Parse the JSON data
+        try:
+            data = json.loads(body)
+            logger.info(f"Received status update: {data}")
+            
+            # Validate the data has required fields
+            if "type" not in data:
+                data["type"] = "info"  # Default type
+            
+            if "content" not in data and "title" not in data:
+                logger.warning("Status update missing both content and title")
+                raise HTTPException(status_code=400, detail="Status update must include either content or title")
+            
+            # Add to queue for processing by Chainlit
+            STATUS_QUEUE.put(data)
+            
+            # Log queue size for debugging
+            queue_size = STATUS_QUEUE.qsize()
+            logger.info(f"Added to queue. Current queue size: {queue_size}")
+            
+            return {
+                "status": "success", 
+                "message": "Status update received",
+                "queue_size": queue_size,
+                "chainlit_processing": CHAINLIT_PROCESSING_ACTIVE,
+                "server_running": WEBHOOK_SERVER_RUNNING
+            }
+        except json.JSONDecodeError as e:
+            logger.error(f"Error decoding JSON: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error processing status update: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error processing status update: {str(e)}")
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    global WEBHOOK_SERVER_RUNNING
+    global CHAINLIT_PROCESSING_ACTIVE
+    
+    # Log the current state for debugging
+    logger.info(f"Health check: WEBHOOK_SERVER_RUNNING={WEBHOOK_SERVER_RUNNING}, CHAINLIT_PROCESSING_ACTIVE={CHAINLIT_PROCESSING_ACTIVE}")
+    
+    return {
+        "status": "healthy" if WEBHOOK_SERVER_RUNNING else "not_running",
+        "server_running": WEBHOOK_SERVER_RUNNING,
+        "queue_size": STATUS_QUEUE.qsize() if not STATUS_QUEUE.empty() else 0,
+        "chainlit_processing": CHAINLIT_PROCESSING_ACTIVE
+    }
+
+def start_webhook_server(host: str = "0.0.0.0", port: int = 5679):
+    """Start the webhook server in a separate thread"""
+    global WEBHOOK_SERVER_RUNNING
+    
+    if WEBHOOK_SERVER_RUNNING:
+        logger.info("Webhook server is already running")
+        return None
+    
+    def run_server():
+        global WEBHOOK_SERVER_RUNNING
+        logger.info(f"Starting status webhook server on {host}:{port}")
+        
+        try:
+            import uvicorn
+            WEBHOOK_SERVER_RUNNING = True
+            logger.info(f"Set WEBHOOK_SERVER_RUNNING to True before starting uvicorn")
+            uvicorn.run(app, host=host, port=port, log_level="info")
+        except Exception as e:
+            logger.error(f"Error running webhook server: {str(e)}")
+            logger.error(traceback.format_exc())
+        finally:
+            logger.info("Status webhook server stopped")
+            WEBHOOK_SERVER_RUNNING = False
+            logger.info(f"Set WEBHOOK_SERVER_RUNNING to False after uvicorn stopped")
+    
+    # Start the server in a separate thread
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+    
+    # Wait for the server to start
+    retry_count = 0
+    max_retries = 5
+    while not WEBHOOK_SERVER_RUNNING and retry_count < max_retries:
+        time.sleep(1)
+        retry_count += 1
+        logger.info(f"Waiting for webhook server to start (attempt {retry_count}/{max_retries})...")
+    
+    if WEBHOOK_SERVER_RUNNING:
+        logger.info(f"Status webhook server started on http://{host}:{port}")
+        return server_thread
+    else:
+        logger.error(f"Failed to start webhook server after {max_retries} attempts")
+        return None
+
+# Function to get the next status update from the queue (non-blocking)
+def get_next_status_update() -> Optional[Dict[str, Any]]:
+    """Get the next status update from the queue"""
+    try:
+        if not STATUS_QUEUE.empty():
+            return STATUS_QUEUE.get_nowait()
+        return None
+    except queue.Empty:
+        return None
+    except Exception as e:
+        logger.error(f"Error getting status update from queue: {str(e)}")
+        logger.error(traceback.format_exc())
+        return None
+
+# Function to clear the queue
+def clear_queue() -> None:
+    """Clear all status updates from the queue"""
+    try:
+        queue_size = STATUS_QUEUE.qsize() if not STATUS_QUEUE.empty() else 0
+        while not STATUS_QUEUE.empty():
+            STATUS_QUEUE.get_nowait()
+        logger.info(f"Cleared status update queue ({queue_size} items)")
+    except Exception as e:
+        logger.error(f"Error clearing queue: {str(e)}")
+        logger.error(traceback.format_exc())
+
+# Function to set the Chainlit processing status
+def set_chainlit_processing(active: bool) -> None:
+    """Set whether Chainlit is actively processing status updates"""
+    global CHAINLIT_PROCESSING_ACTIVE
+    CHAINLIT_PROCESSING_ACTIVE = active
+    logger.info(f"Chainlit processing status set to: {active}")
+
+# Function to check if the webhook server is running
+def is_server_running() -> bool:
+    """Check if the webhook server is running"""
+    global WEBHOOK_SERVER_RUNNING
+    return WEBHOOK_SERVER_RUNNING 

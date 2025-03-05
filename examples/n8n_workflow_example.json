@@ -1,0 +1,226 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// This function generates different types of notifications\n// to demonstrate the Chainlit webhook integration\n\nconst notificationType = $input.first().json.notificationType || 'toast';\nlet payload;\n\nswitch (notificationType) {\n  case 'toast':\n    payload = {\n      type: 'toast',\n      content: 'This is a toast notification from n8n',\n      toast_type: 'info',\n      duration: 5000\n    };\n    break;\n    \n  case 'success':\n    payload = {\n      type: 'success',\n      title: 'Success Status',\n      content: 'Operation completed successfully',\n      icon: 'check-circle'\n    };\n    break;\n    \n  case 'warning':\n    payload = {\n      type: 'warning',\n      title: 'Warning Status',\n      content: 'Please review this information',\n      icon: 'alert-triangle'\n    };\n    break;\n    \n  case 'error':\n    payload = {\n      type: 'error',\n      title: 'Error Status',\n      content: 'An error occurred during processing',\n      icon: 'alert-circle'\n    };\n    break;\n    \n  case 'progress':\n    payload = {\n      type: 'progress',\n      title: 'Progress Update',\n      content: 'Processing your request...',\n      progress: 65,\n      icon: 'loader'\n    };\n    break;\n    \n  case 'animated_progress':\n    payload = {\n      type: 'animated_progress',\n      title: 'Multi-step Process',\n      content: 'Executing workflow steps...',\n      steps: [\n        'Step 1: Initializing workflow',\n        'Step 2: Fetching data from API',\n        'Step 3: Processing data',\n        'Step 4: Generating report'\n      ],\n      delay: 1.5\n    };\n    break;\n    \n  case 'important_alert':\n    payload = {\n      type: 'important_alert',\n      title: 'Important Alert',\n      content: 'Critical system notification that requires attention',\n      icon: 'alert-circle'\n    };\n    break;\n    \n  case 'task_list':\n    payload = {\n      type: 'task_list',\n      title: 'Workflow Tasks',\n      tasks: [\n        {\n          name: 'Initialize Workflow',\n          status: 'completed',\n          icon: 'check-circle'\n        },\n        {\n          name: 'Fetch Data',\n          status: 'completed',\n          icon: 'check-circle'\n        },\n        {\n          name: 'Process Information',\n          status: 'running',\n          icon: 'loader'\n        },\n        {\n          name: 'Generate Report',\n          status: 'waiting',\n          icon: 'clock'\n        }\n      ]\n    };\n    break;\n    \n  default:\n    payload = {\n      type: 'info',\n      title: 'Information',\n      content: 'Default notification from n8n workflow',\n      icon: 'info'\n    };\n}\n\nreturn [{\n  json: {\n    payload\n  }\n}];"
+      },
+      "id": "2",
+      "name": "Generate Notification",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5679/status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "payload",
+              "value": "={{ $json.payload }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3",
+      "name": "Send to Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.statusCode }}",
+              "operation": "equal",
+              "value2": "200"
+            }
+          ]
+        }
+      },
+      "id": "4",
+      "name": "Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log success\nconsole.log('Successfully sent notification to Chainlit');\nreturn $input.all();"
+      },
+      "id": "5",
+      "name": "Success Handler",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log error\nconsole.error('Failed to send notification to Chainlit');\nconsole.error($input.first().json);\nreturn $input.all();"
+      },
+      "id": "6",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "notificationType",
+              "value": "toast"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7",
+      "name": "Notification Type",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        350,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Notification Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Notification": {
+      "main": [
+        [
+          {
+            "node": "Send to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Webhook": {
+      "main": [
+        [
+          {
+            "node": "Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success?": {
+      "main": [
+        [
+          {
+            "node": "Success Handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notification Type": {
+      "main": [
+        [
+          {
+            "node": "Generate Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "example-workflow"
+  },
+  "tags": [
+    {
+      "name": "Chainlit",
+      "color": "#00FF00"
+    },
+    {
+      "name": "Webhook",
+      "color": "#0000FF"
+    },
+    {
+      "name": "Notifications",
+      "color": "#FF00FF"
+    }
+  ],
+  "name": "Chainlit Webhook Notifications Example",
+  "description": "This workflow demonstrates how to send different types of notifications to a Chainlit application using the webhook integration. It includes examples for toast notifications, status updates, progress indicators, animated progress, alerts, and task lists."
+} 

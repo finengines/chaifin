@@ -1,0 +1,156 @@
+[project]
+# Name of the project
+name = "Personal Assistant"
+
+# Description of the project
+description = "Your personal AI assistant powered by n8n"
+
+# Whether to enable telemetry (default: true). No personal data is collected.
+enable_telemetry = true
+
+# List of environment variables to be provided by each user to use the app.
+user_env = []
+
+# Duration (in seconds) during which the session is saved when the connection is lost
+session_timeout = 3600
+
+# Duration (in seconds) of the user session expiry
+user_session_timeout = 1296000  # 15 days
+
+# Enable third parties caching (e.g LangChain cache)
+enable_cache = false
+
+# Enable chat history persistence
+enable_chat_history = true
+
+# Enable user feedback persistence
+enable_feedback = true
+
+# Enable user file upload
+enable_file_upload = false
+
+# Enable multiple chat profiles
+enable_multi_chat = true
+
+# Enable human feedback collection
+enable_human_feedback = true
+
+# Enable prompt playground
+enable_prompt_playground = false
+
+# Authorized origins
+allow_origins = ["*"]
+
+# Whether to restart the chat when changing profiles
+restart_on_chat_profile_change = false
+
+[UI]
+# Name of the assistant
+name = "Personal Assistant"
+
+# Description of the assistant
+description = "Your personal AI assistant powered by n8n"
+
+# Hide the chain of thought (CoT) display
+hide_cot = false
+
+# Default expand messages
+default_expand_messages = true
+
+# Default message size
+default_message_size = "medium"
+
+# Chatbot greeting message
+chatbot_greeting = "Hi! I'm your personal assistant. How can I help you today?"
+
+# Show the readme as the welcome message
+show_readme_as_welcome = true
+
+# Chain of Thought (CoT) display mode. Can be "hidden", "tool_call" or "full".
+cot = "full"
+
+# Specify a CSS file that can be used to customize the user interface.
+# The CSS file can be served from the public directory or via an external link.
+custom_css = "/custom.css"
+
+# Specify a Javascript file that can be used to customize the user interface.
+# The Javascript file can be served from the public directory.
+custom_js = "/custom.js"
+
+# Specify a custom meta image url.
+# custom_meta_image_url = "https://chainlit-cloud.s3.eu-west-3.amazonaws.com/logo/chainlit_banner.png"
+
+# Specify a custom build directory for the frontend.
+# This can be used to customize the frontend code.
+# Be careful: If this is a relative path, it should not start with a slash.
+# custom_build = "./public/build"
+
+# Specify optional one or more custom links in the header.
+# [[UI.header_links]]
+#     name = "Issues"
+#     icon_url = "https://avatars.githubusercontent.com/u/128686189?s=200&v=4"
+#     url = "https://github.com/Chainlit/chainlit/issues"
+
+[meta]
+generated_by = "2.2.1"
+
+[features]
+# Enable speech to text
+speech_to_text = false
+
+# Enable text to speech
+text_to_speech = false
+
+# Enable file upload
+file_upload = false
+
+# Enable multiple chat sessions
+multi_chat = true
+
+# Enable human feedback
+human_feedback = true
+
+# Enable copy button
+copy_button = true
+
+# Enable download button
+download_button = true
+
+# Enable clear button
+clear_button = true
+
+# Enable restart button
+restart_button = true
+
+# Enable settings button
+settings_button = true
+
+# Enable help button
+help_button = true
+
+# Enable LaTeX rendering
+latex = true
+
+# Enable code highlighting
+code_highlighting = true
+
+# Enable markdown rendering
+markdown = true
+
+# Enable mermaid diagrams
+mermaid = true
+
+# Enable avatars
+avatar = true
+
+# Enable typing animation
+typing_animation = true
+
+# Enable streaming responses
+streaming = true
+
+# Enable dark mode
+dark_mode = true
+
+# Enable light mode
+light_mode = true
