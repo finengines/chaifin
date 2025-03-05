@@ -1,4 +1,4 @@
-chainlit>=1.0.0
+chainlit>=2.2.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 uuid>=1.30

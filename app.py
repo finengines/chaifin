@@ -23,37 +23,84 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Define chat profiles
+@cl.set_chat_profiles
+async def chat_profiles():
+    """Define available chat profiles based on providers and models."""
+    profiles = []
+    
+    # OpenRouter profiles
+    for model in config.PROVIDER_MODELS["openrouter"]:
+        # Create a function factory to properly capture the model values
+        def create_on_select(provider, model_id):
+            return lambda: {"provider": provider, "model_id": model_id}
+        
+        profile = cl.ChatProfile(
+            name=f"OpenRouter - {model['name']}",
+            markdown_description=f"**{model['name']}**\n\n{model['description']}",
+            icon="https://openrouter.ai/favicon.ico",  # OpenRouter icon
+        )
+        # Use the function factory to create a unique on_select for each model
+        profile.on_select = create_on_select("openrouter", model['id'])
+        profiles.append(profile)
+    
+    # OpenAI profiles
+    for model in config.PROVIDER_MODELS["openai"]:
+        def create_on_select(provider, model_id):
+            return lambda: {"provider": provider, "model_id": model_id}
+            
+        profile = cl.ChatProfile(
+            name=f"OpenAI - {model['name']}",
+            markdown_description=f"**{model['name']}**\n\n{model['description']}",
+            icon="https://openai.com/favicon.ico",  # OpenAI icon
+        )
+        profile.on_select = create_on_select("openai", model['id'])
+        profiles.append(profile)
+    
+    # Anthropic profiles
+    for model in config.PROVIDER_MODELS["anthropic"]:
+        def create_on_select(provider, model_id):
+            return lambda: {"provider": provider, "model_id": model_id}
+            
+        profile = cl.ChatProfile(
+            name=f"Anthropic - {model['name']}",
+            markdown_description=f"**{model['name']}**\n\n{model['description']}",
+            icon="https://anthropic.com/favicon.ico",  # Anthropic icon
+        )
+        profile.on_select = create_on_select("anthropic", model['id'])
+        profiles.append(profile)
+    
+    # Ollama profiles
+    for model in config.PROVIDER_MODELS["ollama"]:
+        def create_on_select(provider, model_id):
+            return lambda: {"provider": provider, "model_id": model_id}
+            
+        profile = cl.ChatProfile(
+            name=f"Ollama - {model['name']}",
+            markdown_description=f"**{model['name']}**\n\n{model['description']}",
+            icon="https://ollama.com/favicon.ico",  # Ollama icon
+        )
+        profile.on_select = create_on_select("ollama", model['id'])
+        profiles.append(profile)
+    
+    # Set default profile to Gemini (first OpenRouter model)
+    profiles[0].default = True  # OpenRouter - Gemini 2.0 Flash as default
+    
+    return profiles
+
 # Initialize chat settings
 @cl.on_settings_update
 async def on_settings_update(settings: Dict[str, Any]):
     """Handle settings updates from the UI."""
     logger.info(f"Settings updated: {settings}")
     
-    # Get the provider and model values directly from settings
-    provider = settings.get("provider", config.DEFAULT_PROVIDER)
-    model = settings.get("model", config.DEFAULT_MODEL)
-    
-    # Find the corresponding provider and model labels for the confirmation message
-    provider_label = provider
-    model_label = model
-    
-    for p in config.AVAILABLE_PROVIDERS:
-        if p["value"] == provider:
-            provider_label = p["label"]
-            break
-    
-    for m in config.AVAILABLE_MODELS:
-        if m["value"] == model:
-            model_label = m["label"]
-            break
-    
     # Update the user's session with the new settings
-    cl.user_session.set("provider", provider)
-    cl.user_session.set("model", model)
+    for key, value in settings.items():
+        cl.user_session.set(key, value)
     
     # Send a confirmation message
     await cl.Message(
-        content=f"Settings updated! Now using {provider_label} - {model_label}",
+        content=f"Settings updated!",
         author="System",
     ).send()
 
@@ -64,9 +111,21 @@ async def on_chat_start():
     session_id = str(uuid.uuid4())
     cl.user_session.set("session_id", session_id)
     
-    # Set default provider and model
-    cl.user_session.set("provider", config.DEFAULT_PROVIDER)
-    cl.user_session.set("model", config.DEFAULT_MODEL)
+    # Get the selected chat profile
+    chat_profile_name = cl.user_session.get("chat_profile")
+    logger.info(f"Selected chat profile: {chat_profile_name}")
+    
+    # Get the provider and model from the on_select callback data
+    profile_data = cl.user_session.get("chat_profile_callback_data", {})
+    
+    # Set provider and model from the selected profile
+    provider = profile_data.get("provider", config.DEFAULT_PROVIDER)
+    model_id = profile_data.get("model_id", config.DEFAULT_MODEL)
+    
+    logger.info(f"Using provider: {provider}, model: {model_id}")
+    
+    cl.user_session.set("provider", provider)
+    cl.user_session.set("model", model_id)
     
     # Initialize conversation history
     cl.user_session.set("conversation_history", [])
@@ -76,25 +135,9 @@ async def on_chat_start():
     # The image file should be named after the author of the message
     # For example: public/avatars/assistant.png for messages with author="Assistant"
     
-    # Configure chat settings
-    await cl.ChatSettings(
-        [
-            Select(
-                id="provider",
-                label="AI Provider",
-                items={provider["value"]: provider["label"] for provider in config.AVAILABLE_PROVIDERS},
-            ),
-            Select(
-                id="model",
-                label="AI Model",
-                items={model["value"]: model["label"] for model in config.AVAILABLE_MODELS},
-            ),
-        ]
-    ).send()
-    
     # Send welcome message
     await cl.Message(
-        content=f"Welcome to {config.APP_TITLE}! How can I assist you today?",
+        content=f"Welcome to {config.APP_TITLE}! I'm using {chat_profile_name}. How can I assist you today?",
         author="Assistant",
     ).send()
 
@@ -252,30 +295,30 @@ async def on_chat_end():
     """Handle chat end event."""
     logger.info("Chat session ended")
     
-    # You can add cleanup code here if needed
-    # For example, you might want to notify n8n that the session has ended
+    # Clean up any resources if needed
+    # For example, you could send a notification to n8n that the session has ended
     
     # Send a goodbye message
-    await cl.Message(
-        content="Thank you for using the assistant. The session has ended.",
-        author="System"
-    ).send()
+    await cl.Message(content="Thank you for using our assistant. The session has ended.", author="System").send()
 
 @cl.password_auth_callback
 def auth_callback(username: str, password: str) -> Optional[cl.User]:
     """
-    Authenticate users if authentication is enabled.
-    This is a simple example - in production, you would use a more secure method.
+    Authenticate users with username and password.
+    Only used if ENABLE_AUTH is set to true.
     """
-    # Check if authentication is enabled in config
-    if not getattr(config, "ENABLE_AUTH", False):
-        # Authentication disabled, allow all users
+    if not config.ENABLE_AUTH:
+        # If authentication is disabled, auto-authenticate everyone
+        return cl.User(identifier=username)
+    
+    # Simple hardcoded authentication for demo purposes
+    # In a real application, you would check against a database or external auth service
+    if username == "admin" and password == "password":
+        return cl.User(identifier=username, metadata={"role": "admin"})
+    elif username == "user" and password == "password":
         return cl.User(identifier=username, metadata={"role": "user"})
     
-    # Simple authentication example
-    if username == os.getenv("AUTH_USERNAME") and password == os.getenv("AUTH_PASSWORD"):
-        return cl.User(identifier=username, metadata={"role": "admin"})
-    
+    # Authentication failed
     return None
 
 if __name__ == "__main__":
