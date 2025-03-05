@@ -57,6 +57,16 @@ document.addEventListener('DOMContentLoaded', function() {
       document.body.appendChild(toastContainer);
     }
     
+    // Check if there's already a toast with the same message to prevent duplicates
+    const existingToasts = Array.from(toastContainer.querySelectorAll('.toast'));
+    for (const existingToast of existingToasts) {
+      const existingMessage = existingToast.querySelector('.toast-message');
+      if (existingMessage && existingMessage.textContent === message) {
+        console.log('Duplicate toast message detected, not showing:', message);
+        return;
+      }
+    }
+    
     // Create toast element
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
@@ -82,6 +92,10 @@ document.addEventListener('DOMContentLoaded', function() {
     toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-message">${message}</span>`;
     toastContainer.appendChild(toast);
     
+    // Set custom animation duration based on toast duration
+    const progressDuration = duration / 1000; // Convert to seconds
+    toast.style.setProperty('--progress-duration', `${progressDuration}s`);
+    
     // Animate the toast
     setTimeout(() => {
       toast.classList.add('show');
@@ -92,69 +106,11 @@ document.addEventListener('DOMContentLoaded', function() {
       toast.classList.remove('show');
       setTimeout(() => {
         toast.remove();
-      }, 300);
+      }, 400); // Match the transition duration
     }, duration);
+    
+    return toast;
   };
-  
-  // Add custom CSS for toast notifications
-  const style = document.createElement('style');
-  style.textContent = `
-    #toast-container {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-    }
-    
-    .toast {
-      background-color: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 12px 16px;
-      border-radius: 4px;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-      transform: translateX(100%);
-      opacity: 0;
-      transition: transform 0.3s ease, opacity 0.3s ease;
-      max-width: 300px;
-    }
-    
-    .toast.show {
-      transform: translateX(0);
-      opacity: 1;
-    }
-    
-    .toast-icon {
-      margin-right: 8px;
-      font-size: 16px;
-    }
-    
-    .toast-message {
-      font-size: 14px;
-    }
-    
-    .toast-success {
-      background-color: rgba(46, 125, 50, 0.9);
-    }
-    
-    .toast-warning {
-      background-color: rgba(237, 108, 2, 0.9);
-    }
-    
-    .toast-error {
-      background-color: rgba(211, 47, 47, 0.9);
-    }
-    
-    .toast-info {
-      background-color: rgba(2, 136, 209, 0.9);
-    }
-  `;
-  document.head.appendChild(style);
   
   // Register custom element for toast notifications
   class ToastElement extends HTMLElement {

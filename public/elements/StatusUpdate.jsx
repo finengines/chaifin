@@ -1,3 +1,7 @@
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+
 export default function StatusUpdate() {
   // Get props with defaults
   const type = props.type || "info";
@@ -26,7 +30,7 @@ export default function StatusUpdate() {
   
   // Get icon animation class
   const getIconClass = () => {
-    if (type === "progress") return "animate-spin";
+    if (type === "progress" || type === "running") return "animate-spin";
     if (type === "warning" || type === "error") return "animate-pulse";
     return "";
   };
@@ -50,24 +54,27 @@ export default function StatusUpdate() {
   };
   
   return (
-    <div className={`status-update ${getTypeClass()}`}>
-      <div className="status-update-content">
-        <div className={`status-update-icon ${type}-icon`}>
-          <span className="material-icons">{icon}</span>
+    <Card className={`status-update ${getTypeClass()} my-4 border shadow-sm`}>
+      <CardContent className="p-4">
+        <div className="status-update-content flex items-start gap-3">
+          <div className={`status-update-icon flex-shrink-0 ${getIconClass()}`}>
+            <i data-lucide={icon} className="h-5 w-5"></i>
+          </div>
+          <div className="status-update-text flex-grow">
+            <h4 className="status-update-title text-base font-medium">{title}</h4>
+            <p className="status-update-message text-sm text-muted-foreground">{message}</p>
+            {progress !== null && (
+              <div className="mt-3">
+                <Progress value={progress} className="h-2" />
+                <span className="text-xs text-muted-foreground mt-1 inline-block">{progress}%</span>
+              </div>
+            )}
+          </div>
+          <Badge variant="outline" className="status-update-badge flex-shrink-0">
+            {getBadgeText()}
+          </Badge>
         </div>
-        <div className="status-update-text">
-          <h4 className="status-update-title">{title}</h4>
-          <p className="status-update-message">{message}</p>
-          {progress !== null && (
-            <div className="status-update-progress">
-              <div className="status-update-progress-bar" style={{width: `${progress}%`}}></div>
-            </div>
-          )}
-        </div>
-        <div className="status-update-badge">
-          {getBadgeText()}
-        </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 } 

@@ -288,7 +288,7 @@ async def important_alert(title: str, message: str, icon: str = "alert-circle") 
     
     Args:
         title: The title of the alert
-        message: The alert message
+        message: The message content
         icon: Lucide icon name (default: "alert-circle")
         
     Returns:
@@ -299,7 +299,8 @@ async def important_alert(title: str, message: str, icon: str = "alert-circle") 
         props={
             "type": "important",
             "title": title,
-            "message": message
+            "content": message,
+            "icon": icon
         }
     )
     msg = cl.Message(content="", elements=[element])
@@ -311,7 +312,7 @@ async def notification_alert(title: str, message: str, icon: str = "bell") -> cl
     
     Args:
         title: The title of the alert
-        message: The alert message
+        message: The message content
         icon: Lucide icon name (default: "bell")
         
     Returns:
@@ -322,7 +323,8 @@ async def notification_alert(title: str, message: str, icon: str = "bell") -> cl
         props={
             "type": "notification",
             "title": title,
-            "message": message
+            "content": message,
+            "icon": icon
         }
     )
     msg = cl.Message(content="", elements=[element])
@@ -334,7 +336,7 @@ async def system_alert(title: str, message: str, icon: str = "info") -> cl.Messa
     
     Args:
         title: The title of the alert
-        message: The alert message
+        message: The message content
         icon: Lucide icon name (default: "info")
         
     Returns:
@@ -345,7 +347,8 @@ async def system_alert(title: str, message: str, icon: str = "info") -> cl.Messa
         props={
             "type": "system",
             "title": title,
-            "message": message
+            "content": message,
+            "icon": icon
         }
     )
     msg = cl.Message(content="", elements=[element])
@@ -395,7 +398,7 @@ async def animated_progress(title: str, message: str, steps: List[str], delay: f
 
 class StyledTaskList:
     """
-    A styled task list for displaying multiple tasks with status indicators.
+    A styled task list for displaying progress of multiple tasks.
     """
     
     def __init__(self, title: str = "Processing Tasks", **kwargs):
@@ -404,103 +407,103 @@ class StyledTaskList:
         
         Args:
             title: The title of the task list
-            **kwargs: Additional keyword arguments to pass to the TaskList constructor
+            **kwargs: Additional arguments to pass to the task list
         """
         self.title = title
+        self.task_list = None
         self.tasks = {}
-        self.task_list = cl.TaskList(title=self.title)
+        self.kwargs = kwargs
     
     async def create(self) -> None:
-        """Create and display the task list."""
-        await self.task_list.send()
+        """Create the task list."""
+        self.task_list = await cl.TaskList(title=self.title, **self.kwargs)
     
     async def add_task(self, name: str, status: str = "running", icon: Optional[str] = None) -> cl.Task:
         """
-        Add a task to the list.
+        Add a task to the task list.
         
         Args:
             name: The name of the task
-            status: The status of the task (running, done, error)
-            icon: Optional icon name
+            status: The status of the task (running, done, failed, pending)
+            icon: Lucide icon name (optional)
             
         Returns:
-            The created task object
+            The created task
         """
-        # Convert string status to TaskStatus enum
-        task_status = self._get_task_status(status)
+        if self.task_list is None:
+            await self.create()
         
-        # Create and add the task
-        task = cl.Task(title=name, status=task_status, icon=icon)
-        await self.task_list.add_task(task)
+        # Set default icons based on status if not provided
+        if icon is None:
+            if status == "running":
+                icon = "loader"
+            elif status == "done":
+                icon = "check-circle"
+            elif status == "failed":
+                icon = "x-circle"
+            elif status == "pending":
+                icon = "clock"
         
-        # Store the task for later reference
+        task = cl.Task(title=name, status=self._get_task_status(status), icon=icon)
         self.tasks[name] = task
-        
+        await self.task_list.add_task(task)
         return task
     
     async def update_task(self, name: str, status: str, icon: Optional[str] = None) -> None:
         """
-        Update the status of a task.
+        Update a task in the task list.
         
         Args:
             name: The name of the task
-            status: The new status (running, done, error)
-            icon: Optional new icon name
+            status: The new status of the task
+            icon: Lucide icon name (optional)
         """
         if name in self.tasks:
             task = self.tasks[name]
             task.status = self._get_task_status(status)
             if icon:
                 task.icon = icon
-            await self.task_list.update()
+            await task.update()
     
     def _get_task_status(self, status: str) -> cl.TaskStatus:
         """Convert string status to TaskStatus enum."""
-        status = status.lower()
-        if status == "done":
+        if status == "running":
+            return cl.TaskStatus.RUNNING
+        elif status == "done":
             return cl.TaskStatus.DONE
-        elif status == "error" or status == "failed":
+        elif status == "failed":
             return cl.TaskStatus.FAILED
         else:
-            return cl.TaskStatus.RUNNING
+            return cl.TaskStatus.PENDING
 
 # ===== TOAST NOTIFICATIONS =====
 
 async def show_toast(message: str, type: str = "info", duration: int = 3000) -> None:
     """
-    Show a toast notification.
+    Display a toast notification.
     
     Args:
-        message: The notification message
-        type: The type of notification (info, success, warning, error)
+        message: The message to display
+        type: The type of toast (info, success, warning, error)
         duration: Duration in milliseconds
+        
+    Returns:
+        None
     """
-    # Ensure type is one of the valid types
-    valid_types = ["info", "success", "warning", "error"]
-    if type not in valid_types:
-        type = "info"  # Default to info if invalid type
-    
     try:
-        # Use ONLY the cl.notify method for toast notifications
-        # This is the recommended way in Chainlit 2.2.1+
-        await cl.notify(
+        # Validate toast type
+        valid_types = ["info", "success", "warning", "error"]
+        if type not in valid_types:
+            type = "info"
+            
+        # In this version of Chainlit, send_toast only accepts message and type
+        await cl.context.emitter.send_toast(
             message=message,
-            type=type,
-            duration=duration
+            type=type
         )
-        
-        logging.info(f"Toast notification sent: {message}")
-        return True
+        logging.info(f"Toast notification sent: {message} ({type})")
     except Exception as e:
-        logging.error(f"Error sending toast notification: {str(e)}")
-        
-        # Only if the cl.notify method fails, use a fallback
-        try:
-            # Create a simple message with the toast content
-            msg = cl.Message(content=f"**{type.upper()}**: {message}")
-            await msg.send()
-            logging.info(f"Sent fallback toast message: {message}")
-            return True
-        except Exception as e2:
-            logging.error(f"Error sending fallback toast message: {str(e2)}")
-            return False 
+        logging.error(f"Failed to send toast notification: {str(e)}")
+        # Log the full exception for debugging
+        import traceback
+        logging.error(traceback.format_exc()) 
