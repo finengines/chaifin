@@ -1,7 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-
 export default function StatusUpdate() {
   // Get props with defaults
   const type = props.type || "info";
@@ -31,6 +27,7 @@ export default function StatusUpdate() {
   // Get icon animation class
   const getIconClass = () => {
     if (type === "progress") return "animate-spin";
+    if (type === "warning" || type === "error") return "animate-pulse";
     return "";
   };
   
@@ -53,26 +50,24 @@ export default function StatusUpdate() {
   };
   
   return (
-    <Card className={`status-update ${getTypeClass()} border-0 my-4`}>
-      <CardContent className="p-4 flex items-start">
-        <div className="status-update-icon mr-4 mt-1">
-          <i data-lucide={icon} className={getIconClass()}></i>
+    <div className={`status-update ${getTypeClass()}`}>
+      <div className="status-update-content">
+        <div className={`status-update-icon ${type}-icon`}>
+          <span className="material-icons">{icon}</span>
         </div>
-        <div className="flex-1">
-          <div className="flex items-center justify-between">
-            <h4 className="text-base font-semibold mb-1">{title}</h4>
-            <Badge variant="outline" className="ml-2 capitalize">
-              {getBadgeText()}
-            </Badge>
-          </div>
-          <p className="text-sm opacity-90">{message}</p>
+        <div className="status-update-text">
+          <h4 className="status-update-title">{title}</h4>
+          <p className="status-update-message">{message}</p>
           {progress !== null && (
-            <div className="mt-3">
-              <Progress value={progress} className="h-2" />
+            <div className="status-update-progress">
+              <div className="status-update-progress-bar" style={{width: `${progress}%`}}></div>
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+        <div className="status-update-badge">
+          {getBadgeText()}
+        </div>
+      </div>
+    </div>
   );
 } 

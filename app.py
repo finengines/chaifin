@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 status_webhook_integration.stop_webhook_server()
 logger.info("Stopped any existing webhook server")
 
-# Start the webhook server
+# Start the webhook server - ONLY ONCE at application startup
 webhook_server_thread = status_webhook_integration.start_webhook_server(port=5679)
 if webhook_server_thread:
     logger.info("Started status webhook server on port 5679")
@@ -165,8 +165,9 @@ async def on_chat_start():
             
             if not health_data.get("server_running", False):
                 logger.warning("Webhook server reports it's not running. Attempting to restart...")
-                # Restart the webhook server
+                # We'll only restart if the server reports it's not running
                 status_webhook_integration.stop_webhook_server()
+                # Properly restart the server when needed
                 webhook_server_thread = status_webhook_integration.start_webhook_server(port=5679)
                 if webhook_server_thread:
                     logger.info("Restarted webhook server successfully")
@@ -176,14 +177,14 @@ async def on_chat_start():
             logger.warning(f"Webhook server health check failed with status code: {health_response.status_code}")
     except Exception as e:
         logger.error(f"Error checking webhook server health: {str(e)}")
-        logger.info("Attempting to restart webhook server...")
-        # Restart the webhook server
+        # Restart the server if the health check fails completely
+        logger.info("Health check failed. Attempting to restart webhook server...")
         status_webhook_integration.stop_webhook_server()
         webhook_server_thread = status_webhook_integration.start_webhook_server(port=5679)
         if webhook_server_thread:
-            logger.info("Started webhook server successfully")
+            logger.info("Restarted webhook server after health check failure")
         else:
-            logger.error("Failed to start webhook server")
+            logger.error("Failed to restart webhook server after health check failure")
     
     # Start a background task to process status updates
     cl.user_session.set("process_status_updates", True)
@@ -213,34 +214,24 @@ async def on_chat_start():
                         
                         # Handle different types of status updates
                         if update_type == "toast":
-                            # Use multiple methods to ensure toast notifications are displayed
+                            # Use only one method for toast notifications
                             toast_type = update.get("toast_type", "info")
-                            
-                            # Method 1: Use the notify method
                             try:
-                                await cl.notify(
-                                    message=content,
-                                    type=toast_type,
-                                    duration=duration
-                                )
-                                logger.info(f"Sent toast notification via notify: {content}")
+                                success = await show_toast(content, toast_type, duration)
+                                if success:
+                                    logger.info(f"Sent toast notification: {content}")
+                                else:
+                                    logger.warning(f"Failed to send toast notification: {content}")
                             except Exception as e:
-                                logger.error(f"Error sending toast via notify: {str(e)}")
-                            
-                            # Method 2: Use the show_toast function
-                            try:
-                                await show_toast(content, toast_type, duration)
-                                logger.info(f"Sent toast notification via show_toast: {content}")
-                            except Exception as e:
-                                logger.error(f"Error sending toast via show_toast: {str(e)}")
-                            
-                            # Method 3: Send as a regular message with toast styling
-                            try:
-                                msg = cl.Message(content=f"**{toast_type.upper()}**: {content}")
-                                await msg.send()
-                                logger.info(f"Sent toast as regular message: {content}")
-                            except Exception as e:
-                                logger.error(f"Error sending toast as message: {str(e)}")
+                                logger.error(f"Error sending toast notification: {str(e)}")
+                                
+                                # Only if the above fails, use a fallback
+                                try:
+                                    msg = cl.Message(content=f"**{toast_type.upper()}**: {content}")
+                                    await msg.send()
+                                    logger.info(f"Sent fallback toast message: {content}")
+                                except Exception as e2:
+                                    logger.error(f"Error sending fallback toast message: {str(e2)}")
                         
                         elif update_type == "progress" and progress is not None:
                             # Use the progress status function
@@ -266,13 +257,78 @@ async def on_chat_start():
                                     task_icon = task.get("icon", None)
                                     await task_list.add_task(task_name, task_status, task_icon)
                                 
+                                # Store the task list in the user session
+                                cl.user_session.set("current_task_list", task_list)
                                 logger.info(f"Created task list with {len(tasks)} tasks")
                             except Exception as e:
                                 logger.error(f"Error creating task list: {str(e)}")
                                 # Fallback: Send as a regular message
-                                tasks = update.get("tasks", [])
-                                task_text = "\n".join([f"- {task.get('name', 'Task')}: {task.get('status', 'running')}" for task in tasks])
-                                msg = cl.Message(content=f"**{title}**\n{task_text}")
+                                msg = cl.Message(content=f"**Task List**: {title}")
+                                await msg.send()
+                        
+                        elif update_type == "task-list-create":
+                            # Handle task list creation
+                            try:
+                                # Create a new task list
+                                task_list = StyledTaskList(title=title)
+                                await task_list.create()
+                                
+                                # Store the task list in the user session
+                                cl.user_session.set("current_task_list", task_list)
+                                logger.info(f"Created task list: {title}")
+                            except Exception as e:
+                                logger.error(f"Error creating task list: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**Task List**: {title}")
+                                await msg.send()
+                        
+                        elif update_type == "task-list-add":
+                            # Handle adding a task to the task list
+                            try:
+                                task_name = update.get("name", "Task")
+                                task_status = update.get("status", "running")
+                                task_icon = update.get("icon", None)
+                                
+                                # Get the current task list or create a new one
+                                task_list = cl.user_session.get("current_task_list")
+                                if not task_list:
+                                    task_list = StyledTaskList(title="Processing Tasks")
+                                    await task_list.create()
+                                    cl.user_session.set("current_task_list", task_list)
+                                
+                                # Add the task to the task list
+                                await task_list.add_task(task_name, task_status, task_icon)
+                                logger.info(f"Added task to task list: {task_name}")
+                            except Exception as e:
+                                logger.error(f"Error adding task to task list: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**Task**: {update.get('name', 'Task')} ({update.get('status', 'running')})")
+                                await msg.send()
+                        
+                        elif update_type == "task-list-update":
+                            # Handle updating a task in the task list
+                            try:
+                                task_name = update.get("name", "Task")
+                                task_status = update.get("status", "running")
+                                task_icon = update.get("icon", None)
+                                
+                                # Get the current task list
+                                task_list = cl.user_session.get("current_task_list")
+                                if task_list:
+                                    await task_list.update_task(task_name, task_status, task_icon)
+                                    logger.info(f"Updated task in task list: {task_name} to {task_status}")
+                                else:
+                                    logger.warning("No task list found to update task")
+                                    # Create a new task list and add the task
+                                    task_list = StyledTaskList(title="Processing Tasks")
+                                    await task_list.create()
+                                    await task_list.add_task(task_name, task_status, task_icon)
+                                    cl.user_session.set("current_task_list", task_list)
+                                    logger.info(f"Created new task list and added task: {task_name}")
+                            except Exception as e:
+                                logger.error(f"Error updating task in task list: {str(e)}")
+                                # Fallback: Send as a regular message
+                                msg = cl.Message(content=f"**Task Update**: {update.get('name', 'Task')} ({update.get('status', 'running')})")
                                 await msg.send()
                         
                         elif update_type == "animated_progress":

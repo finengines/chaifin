@@ -459,7 +459,7 @@ class StyledTaskList:
         status = status.lower()
         if status == "done":
             return cl.TaskStatus.DONE
-        elif status == "error":
+        elif status == "error" or status == "failed":
             return cl.TaskStatus.FAILED
         else:
             return cl.TaskStatus.RUNNING
@@ -475,41 +475,32 @@ async def show_toast(message: str, type: str = "info", duration: int = 3000) -> 
         type: The type of notification (info, success, warning, error)
         duration: Duration in milliseconds
     """
+    # Ensure type is one of the valid types
+    valid_types = ["info", "success", "warning", "error"]
+    if type not in valid_types:
+        type = "info"  # Default to info if invalid type
+    
     try:
-        # In Chainlit 2.2.1, toast notifications can be sent using the notify method
-        # or by creating a message with a specific type
-        
-        # Method 1: Using cl.notify
+        # Use ONLY the cl.notify method for toast notifications
+        # This is the recommended way in Chainlit 2.2.1+
         await cl.notify(
             message=message,
             type=type,
             duration=duration
         )
         
-        # Method 2: As a fallback, also try sending as a regular message with toast class
-        # This creates a custom element that mimics a toast notification
-        element = cl.CustomElement(
-            name="Toast",
-            props={
-                "message": message,
-                "type": type,
-                "duration": duration
-            }
-        )
-        
-        # Create a message with the toast element
-        msg = cl.Message(content="", elements=[element])
-        await msg.send()
-        
         logging.info(f"Toast notification sent: {message}")
+        return True
     except Exception as e:
         logging.error(f"Error sending toast notification: {str(e)}")
         
-        # Fallback method if the above methods fail
+        # Only if the cl.notify method fails, use a fallback
         try:
             # Create a simple message with the toast content
             msg = cl.Message(content=f"**{type.upper()}**: {message}")
             await msg.send()
             logging.info(f"Sent fallback toast message: {message}")
+            return True
         except Exception as e2:
-            logging.error(f"Error sending fallback toast message: {str(e2)}") 
+            logging.error(f"Error sending fallback toast message: {str(e2)}")
+            return False 
