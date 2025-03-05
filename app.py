@@ -19,6 +19,10 @@ logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler("chainlit_app.log"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -28,8 +32,20 @@ def chat_profiles():
     profiles = []
     default_set = False
     
+    print("Creating chat profiles...")
+    
+    # Create a factory function outside the loops to properly capture values
+    def create_on_select_function(provider, model_id):
+        """Create an on_select function with fixed provider and model_id values."""
+        def on_select():
+            print(f"Selected profile with provider: {provider}, model_id: {model_id}")
+            logger.info(f"Selected profile with provider: {provider}, model_id: {model_id}")
+            return {"provider": provider, "model_id": model_id}
+        return on_select
+    
     # Create OpenRouter profiles
     if "openrouter" in config.PROVIDER_MODELS:
+        print(f"Creating OpenRouter profiles: {len(config.PROVIDER_MODELS['openrouter'])} models")
         for model in config.PROVIDER_MODELS["openrouter"]:
             profile = cl.ChatProfile(
                 name=f"OpenRouter - {model['name']}",
@@ -37,17 +53,14 @@ def chat_profiles():
                 icon="openrouter"
             )
             
-            def make_on_select(provider, model_id):
-                def on_select():
-                    return {"provider": provider, "model_id": model_id}
-                return on_select
+            # Use the factory function to create a closure with fixed values
+            profile.on_select = create_on_select_function("openrouter", model["id"])
             
-            profile.on_select = make_on_select("openrouter", model["id"])
-            
-            # Set Gemini 2.0 Flash as the default
+            # Set  2.0 Flash as the default
             if model["id"] == "google/gemini-2.0-flash-001":
                 profile.default = True
                 default_set = True
+                print(f"Setting default profile: OpenRouter - {model['name']}")
                 
             profiles.append(profile)
     
@@ -60,13 +73,9 @@ def chat_profiles():
                 icon="openai"
             )
             
-            # Create a closure to capture the current values
-            def make_on_select(provider, model_id):
-                def on_select():
-                    return {"provider": provider, "model_id": model_id}
-                return on_select
+            # Use the factory function to create a closure with fixed values
+            profile.on_select = create_on_select_function("openai", model["id"])
             
-            profile.on_select = make_on_select("openai", model["id"])
             profiles.append(profile)
     
     # Create Anthropic profiles
@@ -78,12 +87,9 @@ def chat_profiles():
                 icon="anthropic"
             )
             
-            def make_on_select(provider, model_id):
-                def on_select():
-                    return {"provider": provider, "model_id": model_id}
-                return on_select
+            # Use the factory function to create a closure with fixed values
+            profile.on_select = create_on_select_function("anthropic", model["id"])
             
-            profile.on_select = make_on_select("anthropic", model["id"])
             profiles.append(profile)
     
     # Create Ollama profiles
@@ -95,12 +101,9 @@ def chat_profiles():
                 icon="ollama"
             )
             
-            def make_on_select(provider, model_id):
-                def on_select():
-                    return {"provider": provider, "model_id": model_id}
-                return on_select
+            # Use the factory function to create a closure with fixed values
+            profile.on_select = create_on_select_function("ollama", model["id"])
             
-            profile.on_select = make_on_select("ollama", model["id"])
             profiles.append(profile)
     
     # Set a default profile if there are any profiles and no default was set
@@ -111,64 +114,238 @@ def chat_profiles():
 
 @cl.on_chat_start
 async def on_chat_start():
-    """Initialize a new chat session."""
-    try:
-        # Generate a unique session ID
-        session_id = str(uuid.uuid4())
-        cl.user_session.set("session_id", session_id)
-        logger.info(f"New chat session started with ID: {session_id}")
+    """
+    Initialize the chat session.
+    
+    This function is called when a new chat session is started.
+    It initializes the conversation history and sets the initial model.
+    """
+    print("Starting new chat session...")
+    
+    # Generate a unique session ID
+    session_id = str(uuid.uuid4())
+    cl.user_session.set("session_id", session_id)
+    print(f"Session ID: {session_id}")
+    logger.info(f"Starting new chat session with ID: {session_id}")
+    
+    # Get the selected chat profile from the user session
+    profile_name = cl.user_session.get("chat_profile")
+    print(f"Selected chat profile from session: {profile_name}")
+    logger.info(f"Selected chat profile from session: {profile_name}")
+    
+    # Get all available profiles
+    profiles = chat_profiles()
+    print(f"Available profiles: {[p.name for p in profiles]}")
+    logger.info(f"Available profiles: {[p.name for p in profiles]}")
+    
+    # Find the matching profile
+    profile_data = None
+    
+    # If a profile name is provided, find the matching profile
+    if profile_name:
+        profile_data = next((p for p in profiles if p.name == profile_name), None)
         
-        # Get the selected chat profile
-        profile_name = cl.user_session.get("chat_profile_name", "Default")
-        logger.info(f"Selected chat profile: {profile_name}")
-        
-        # Get the profile data
-        profiles = chat_profiles()
-        profile_data = next((p for p in profiles if p.name == profile_name), profiles[0])
-        
-        # Get the callback data from the profile
-        if hasattr(profile_data, 'on_select') and callable(profile_data.on_select):
-            profile_data = profile_data.on_select()
+        if not profile_data:
+            logger.warning(f"No matching profile found for name: {profile_name}")
+            
+            # Find the default profile
+            profile_data = next((p for p in profiles if hasattr(p, 'default') and p.default), None)
+            
+            if profile_data:
+                logger.info(f"Using default profile: {profile_data.name}")
+                # Update the profile name in the session
+                cl.user_session.set("chat_profile", profile_data.name)
+            else:
+                # Use the first profile as a fallback
+                profile_data = profiles[0] if profiles else None
+                if profile_data:
+                    logger.info(f"Using first profile as fallback: {profile_data.name}")
+                    # Update the profile name in the session
+                    cl.user_session.set("chat_profile", profile_data.name)
         else:
-            profile_data = {}
+            logger.info(f"Found matching profile: {profile_data.name}")
+    else:
+        # No profile name provided, use the default profile
+        profile_data = next((p for p in profiles if hasattr(p, 'default') and p.default), None)
         
-        # Set the provider and model from the profile
-        provider = profile_data.get("provider", config.DEFAULT_PROVIDER)
-        model_id = profile_data.get("model_id", config.DEFAULT_MODEL)
-        cl.user_session.set("provider", provider)
-        cl.user_session.set("model", model_id)
-        logger.info(f"Using provider: {provider}, model: {model_id}")
-        
-        # Initialize conversation history
-        cl.user_session.set("conversation_history", [])
-        
-        # Send a welcome message
-        model_name = "Unknown Model"
-        if provider in config.PROVIDER_MODELS:
-            for model_config in config.PROVIDER_MODELS[provider]:
-                if model_config["id"] == model_id:
-                    model_name = model_config["name"]
-                    break
-        
-        welcome_message = f"Welcome! I'm using the {model_name} model from {provider}. How can I help you today?"
-        await cl.Message(content=welcome_message, author="Assistant").send()
-        
-    except Exception as e:
-        logger.error(f"Error in on_chat_start: {str(e)}")
-        await cl.Message(content=f"Error initializing chat: {str(e)}", author="System").send()
+        if profile_data:
+            logger.info(f"Using default profile: {profile_data.name}")
+            # Update the profile name in the session
+            cl.user_session.set("chat_profile", profile_data.name)
+        else:
+            # Use the first profile as a fallback
+            profile_data = profiles[0] if profiles else None
+            if profile_data:
+                logger.info(f"Using first profile as fallback: {profile_data.name}")
+                # Update the profile name in the session
+                cl.user_session.set("chat_profile", profile_data.name)
+    
+    # Get the callback data from the profile
+    profile_settings = {}
+    if profile_data and hasattr(profile_data, 'on_select') and callable(profile_data.on_select):
+        profile_settings = profile_data.on_select()
+        logger.info(f"Profile on_select returned: {profile_settings}")
+    else:
+        if profile_data:
+            logger.warning(f"Profile {profile_data.name} does not have an on_select method")
+        else:
+            logger.warning("No valid profile data found")
+    
+    # Set the provider and model from the profile
+    provider = profile_settings.get("provider", config.DEFAULT_PROVIDER)
+    model_id = profile_settings.get("model_id", config.DEFAULT_MODEL)
+    
+    # Store the provider and model in the user session
+    cl.user_session.set("provider", provider)
+    cl.user_session.set("model", model_id)
+    logger.info(f"Using provider: {provider}, model: {model_id}")
+    
+    # Initialize conversation history
+    cl.user_session.set("conversation_history", [])
+    
+    # Send a welcome message
+    model_name = "Unknown Model"
+    if provider in config.PROVIDER_MODELS:
+        for model_config in config.PROVIDER_MODELS[provider]:
+            if model_config["id"] == model_id:
+                model_name = model_config["name"]
+                break
+    
+    # Remove the system notification about the selected profile
+    # Send only the welcome message
+    await cl.Message(
+        content=f"Hello! I'm your personal assistant powered by {model_name}. How can I help you today?",
+        author="Assistant"
+    ).send()
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    """Handle incoming user messages."""
+    """
+    Handle incoming messages from the user.
+    
+    This function is called when a user sends a message.
+    It processes the message and sends it to n8n for processing.
+    
+    Args:
+        message: The incoming message from the user
+    """
     try:
-        # Get session information
+        print(f"Received message: {message.content}")
+        
+        # Get the session ID
         session_id = cl.user_session.get("session_id")
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            cl.user_session.set("session_id", session_id)
+            print(f"Created new session ID: {session_id}")
+            logger.info(f"Created new session ID: {session_id}")
+        
+        # Get the current chat profile from the user session
+        current_profile_name = cl.user_session.get("chat_profile")
+        print(f"Current chat profile from session: {current_profile_name}")
+        logger.info(f"Current chat profile from session: {current_profile_name}")
+        
+        # Get all available profiles
+        profiles = chat_profiles()
+        print(f"Available profiles: {[p.name for p in profiles]}")
+        logger.info(f"Available profiles: {[p.name for p in profiles]}")
+        
+        # Find the matching profile
+        selected_profile = None
+        if current_profile_name:
+            selected_profile = next((p for p in profiles if p.name == current_profile_name), None)
+            if selected_profile:
+                print(f"Found matching profile: {selected_profile.name}")
+                logger.info(f"Found matching profile: {selected_profile.name}")
+            else:
+                print(f"No matching profile found for name: {current_profile_name}")
+                logger.warning(f"No matching profile found for name: {current_profile_name}")
+        
+        # Get the provider and model from the user session
         provider = cl.user_session.get("provider")
         model_id = cl.user_session.get("model")
         
-        # Log the incoming message
-        logger.info(f"Received message from user: {message.content}")
-        logger.info(f"Using provider: {provider}, model: {model_id}")
+        # If we have a selected profile, update the provider and model
+        if selected_profile and hasattr(selected_profile, 'on_select') and callable(selected_profile.on_select):
+            profile_settings = selected_profile.on_select()
+            if profile_settings and isinstance(profile_settings, dict):
+                provider = profile_settings.get("provider", provider)
+                model_id = profile_settings.get("model_id", model_id)
+                print(f"Selected profile with provider: {provider}, model_id: {model_id}")
+                logger.info(f"Selected profile with provider: {provider}, model_id: {model_id}")
+                print(f"Profile on_select returned: {profile_settings}")
+                logger.info(f"Profile on_select returned: {profile_settings}")
+                
+                # Update the session with the new provider and model
+                cl.user_session.set("provider", provider)
+                cl.user_session.set("model", model_id)
+                print(f"Updated provider to {provider} and model to {model_id}")
+                logger.info(f"Updated provider to {provider} and model to {model_id}")
+        
+        # Check if the message is a model command
+        if message.content.startswith("/model"):
+            try:
+                # Parse the model command
+                parts = message.content.split()
+                if len(parts) < 2:
+                    await cl.Message(
+                        content="Please specify a model name. Example: /model gpt-4",
+                        author="System"
+                    ).send()
+                    return
+                
+                model_name = parts[1]
+                
+                # Find the profile that matches the model name
+                matching_profile = None
+                for profile in profiles:
+                    if model_name.lower() in profile.name.lower():
+                        matching_profile = profile
+                        break
+                
+                if not matching_profile:
+                    await cl.Message(
+                        content=f"No model found with name: {model_name}",
+                        author="System"
+                    ).send()
+                    return
+                
+                # Update the session with the new profile
+                cl.user_session.set("chat_profile", matching_profile.name)
+                
+                # Get the provider and model from the profile
+                if hasattr(matching_profile, 'on_select') and callable(matching_profile.on_select):
+                    profile_settings = matching_profile.on_select()
+                    if profile_settings and isinstance(profile_settings, dict):
+                        provider = profile_settings.get("provider", provider)
+                        model_id = profile_settings.get("model_id", model_id)
+                        
+                        # Update the session with the new provider and model
+                        cl.user_session.set("provider", provider)
+                        cl.user_session.set("model", model_id)
+                
+                await cl.Message(
+                    content=f"Switched to model: {matching_profile.name}",
+                    author="System"
+                ).send()
+                return
+            except Exception as e:
+                logger.error(f"Error processing model command: {str(e)}")
+                await cl.Message(
+                    content=f"Error changing model: {str(e)}",
+                    author="System"
+                ).send()
+                return
+        
+        # Double-check that we have valid provider and model_id
+        if not provider or not model_id:
+            logger.warning(f"Missing provider ({provider}) or model_id ({model_id}). Using defaults.")
+            provider = config.DEFAULT_PROVIDER
+            model_id = config.DEFAULT_MODEL
+            
+            # Update the session with the defaults
+            cl.user_session.set("provider", provider)
+            cl.user_session.set("model", model_id)
         
         # Prepare the request payload for n8n
         payload = {
@@ -179,6 +356,11 @@ async def on_message(message: cl.Message):
             "temperature": 0.7,
             "max_tokens": 2048
         }
+        
+        # Log the payload for verification
+        logger.info(f"Sending payload to n8n: {json.dumps(payload, indent=2)}")
+        print(f"Current session settings - provider: {provider}, model: {model_id}")
+        logger.info(f"Current session settings - provider: {provider}, model: {model_id}")
         
         # Show thinking indicator
         thinking_msg = cl.Message(content="Thinking...", author="Assistant")
@@ -192,49 +374,47 @@ async def on_message(message: cl.Message):
             response = make_n8n_request(payload)
             
             # Calculate and log response time
-            response_time = time.time() - start_time
-            logger.info(f"Response time: {response_time:.2f} seconds")
+            end_time = time.time()
+            response_time = end_time - start_time
+            logger.info(f"n8n response received in {response_time:.2f} seconds")
             
             # Remove the thinking message
             await thinking_msg.remove()
             
-            # Check if the response is valid and contains an output
-            if response and "output" in response[0]:
-                # Get the assistant's response
-                assistant_response = response[0]["output"]
-                
-                # Update conversation history with user and assistant messages
-                conversation_history = cl.user_session.get("conversation_history", [])
-                conversation_history.append({"role": "user", "content": message.content})
-                conversation_history.append({"role": "assistant", "content": assistant_response})
-                cl.user_session.set("conversation_history", conversation_history)
-                
-                # Check for any special elements in the response
-                elements = []
-                
-                # Check if there are any images in the response
-                if "images" in response[0] and response[0]["images"]:
-                    for img_url in response[0]["images"]:
-                        elements.append(cl.Image(url=img_url, name="Generated Image"))
-                
-                # Send the assistant's response
-                await cl.Message(
-                    content=assistant_response,
-                    author="Assistant",
-                    elements=elements
-                ).send()
+            # Process the response
+            if response:
+                # Check if the response is a dictionary with an 'output' field
+                if isinstance(response, dict) and "output" in response:
+                    # Send the response to the user
+                    await cl.Message(content=response["output"], author="Assistant").send()
+                # Check if the response is a list with at least one item
+                elif isinstance(response, list) and len(response) > 0:
+                    # Get the first response
+                    first_response = response[0]
+                    
+                    # Check if the response has the expected format
+                    if "content" in first_response:
+                        # Send the response to the user
+                        await cl.Message(content=first_response["content"], author="Assistant").send()
+                    elif "output" in first_response:
+                        # Send the response to the user
+                        await cl.Message(content=first_response["output"], author="Assistant").send()
+                    else:
+                        logger.error(f"Unexpected response format: {first_response}")
+                        await cl.Message(content="I received an unexpected response format. Please try again.", author="Assistant").send()
+                else:
+                    logger.error(f"Empty or invalid response: {response}")
+                    await cl.Message(content="I didn't receive a valid response. Please try again.", author="Assistant").send()
             else:
-                logger.error(f"Invalid response format: {response}")
-                await cl.Message(content="I'm sorry, I received an invalid response. Please try again.").send()
-        
+                logger.error("No response received from n8n")
+                await cl.Message(content="I didn't receive a response. Please try again.", author="Assistant").send()
         except Exception as e:
-            logger.error(f"Error in on_message: {str(e)}")
+            logger.error(f"Error making n8n request: {str(e)}")
             await thinking_msg.remove()
-            await cl.Message(content=f"I'm sorry, an error occurred: {str(e)}").send()
-    
+            await cl.Message(content=f"Error: {str(e)}", author="Assistant").send()
     except Exception as e:
-        logger.error(f"Unexpected error in on_message: {str(e)}")
-        await cl.Message(content=f"I'm sorry, an unexpected error occurred: {str(e)}").send()
+        logger.error(f"Error in on_message: {str(e)}")
+        await cl.Message(content=f"An error occurred: {str(e)}", author="System").send()
 
 def make_n8n_request(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
@@ -247,8 +427,30 @@ def make_n8n_request(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         The parsed response from n8n
     """
     try:
-        # Log the payload for debugging
-        logger.debug(f"Sending payload to n8n: {payload}")
+        # Log the original payload for debugging
+        print(f"Original payload to n8n: {json.dumps(payload, indent=2)}")
+        logger.info(f"Original payload to n8n: {json.dumps(payload, indent=2)}")
+        
+        # Ensure the provider and model are correctly set
+        if not payload.get("provider"):
+            print("Provider missing in payload. Using default provider.")
+            logger.warning("Provider missing in payload. Using default provider.")
+            payload["provider"] = config.DEFAULT_PROVIDER
+        
+        if not payload.get("model"):
+            print("Model missing in payload. Using default model.")
+            logger.warning("Model missing in payload. Using default model.")
+            payload["model"] = config.DEFAULT_MODEL
+        
+        # Get the current provider and model from the payload
+        provider = payload.get("provider")
+        model = payload.get("model")
+        
+        # Log the provider and model for debugging
+        print(f"Final payload provider: {provider}, model: {model}")
+        logger.info(f"Final payload provider: {provider}, model: {model}")
+        print(f"Full payload being sent to n8n: {json.dumps(payload, indent=2)}")
+        logger.info(f"Full payload being sent to n8n: {json.dumps(payload, indent=2)}")
         
         # Make the POST request to the n8n webhook
         response = requests.post(
@@ -261,76 +463,33 @@ def make_n8n_request(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
         # Check if the request was successful
         response.raise_for_status()
         
-        # Parse the JSON response
-        parsed_response = response.json()
-        logger.debug(f"Received response from n8n: {parsed_response}")
-        
-        # Ensure the response is a list
-        if not isinstance(parsed_response, list):
-            logger.info(f"Converting non-list response to list: {type(parsed_response)}")
-            
-            # If it's a dictionary with an 'output' field, wrap it in a list
-            if isinstance(parsed_response, dict) and "output" in parsed_response:
-                parsed_response = [parsed_response]
-            # If it's a dictionary without an 'output' field, create one
-            elif isinstance(parsed_response, dict):
-                # If there's a text or content field, use that as output
-                if "text" in parsed_response:
-                    parsed_response = [{"output": parsed_response["text"]}]
-                elif "content" in parsed_response:
-                    parsed_response = [{"output": parsed_response["content"]}]
-                else:
-                    # Create a simple wrapper with the whole response as output
-                    parsed_response = [{"output": str(parsed_response)}]
-            else:
-                # For any other type, convert to string and wrap
-                parsed_response = [{"output": str(parsed_response)}]
-        
-        # Validate that the response contains the expected fields
-        for item in parsed_response:
-            if not isinstance(item, dict):
-                logger.warning(f"Response item is not a dictionary: {item}")
-                item = {"output": str(item)}
-            elif "output" not in item:
-                logger.warning(f"Response item missing 'output' field: {item}")
-                # Try to find alternative fields that might contain the output
-                if "text" in item:
-                    item["output"] = item["text"]
-                elif "content" in item:
-                    item["output"] = item["content"]
-                elif "response" in item:
-                    item["output"] = item["response"]
-                else:
-                    item["output"] = str(item)
-        
-        return parsed_response
-        
+        # Parse the response
+        try:
+            response_data = response.json()
+            logger.info(f"Received response from n8n: {json.dumps(response_data, indent=2)}")
+            return response_data
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse response as JSON: {response.text}")
+            raise ValueError(f"Invalid JSON response from n8n: {response.text}")
     except requests.exceptions.RequestException as e:
-        logger.error(f"Request error: {str(e)}")
-        raise Exception(f"Error communicating with n8n: {str(e)}")
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error: {str(e)}")
-        raise Exception("Invalid JSON response from n8n")
+        logger.error(f"Request to n8n failed: {str(e)}")
+        raise RuntimeError(f"Failed to communicate with n8n: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error in make_n8n_request: {str(e)}")
+        raise RuntimeError(f"Unexpected error: {str(e)}")
 
 @cl.on_chat_end
 async def on_chat_end():
-    """Handle chat session end."""
+    """Clean up resources when the chat session ends."""
     logger.info("Chat session ended")
 
 @cl.password_auth_callback
 def auth_callback(username: str, password: str) -> Optional[cl.User]:
-    """
-    Authenticate users based on username and password.
-    Only used if authentication is enabled in config.
-    """
-    # Simple authentication for demo purposes
-    # In a production environment, use a secure authentication method
-    if username == "admin" and password == "password":
+    """Authenticate a user with username and password."""
+    if username == "admin" and password == "admin":
         return cl.User(identifier="admin", metadata={"role": "admin"})
     return None
 
 if __name__ == "__main__":
     # This block will be executed when running the script directly
-    print(f"Starting {config.APP_TITLE}...")
-    print(f"Run 'chainlit run app.py -w' to start the application") 
+    pass 
