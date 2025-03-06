@@ -3,6 +3,60 @@
 document.addEventListener('DOMContentLoaded', function() {
   console.log('Chainlit UI enhancements loaded');
   
+  // Add task list close button functionality
+  function addTaskListCloseButtons() {
+    // Find all task lists
+    const taskLists = document.querySelectorAll('.cl-tasklist, .cl-task-list');
+    
+    taskLists.forEach(taskList => {
+      // Check if this task list already has a close button
+      if (!taskList.querySelector('.cl-tasklist-close')) {
+        // Create close button
+        const closeButton = document.createElement('div');
+        closeButton.className = 'cl-tasklist-close';
+        closeButton.title = 'Close task list';
+        
+        // Add click event to hide the task list
+        closeButton.addEventListener('click', function() {
+          taskList.style.display = 'none';
+          
+          // Show a toast notification
+          if (window.showToast) {
+            window.showToast('Task list closed', 'info', 2000);
+          }
+        });
+        
+        // Add the close button to the task list
+        taskList.appendChild(closeButton);
+      }
+    });
+  }
+  
+  // Run initially
+  setTimeout(addTaskListCloseButtons, 1000);
+  
+  // Set up a mutation observer to add close buttons to new task lists
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        // Check if any task lists were added
+        const addedTaskLists = Array.from(mutation.addedNodes).some(node => 
+          node.nodeType === Node.ELEMENT_NODE && 
+          (node.classList.contains('cl-tasklist') || node.classList.contains('cl-task-list') ||
+           node.querySelector('.cl-tasklist, .cl-task-list'))
+        );
+        
+        if (addedTaskLists) {
+          // Add close buttons to new task lists
+          setTimeout(addTaskListCloseButtons, 100);
+        }
+      }
+    });
+  });
+  
+  // Start observing the document body
+  observer.observe(document.body, { childList: true, subtree: true });
+  
   // ===== Progress Bar Functions =====
   
   // Create a progress bar element

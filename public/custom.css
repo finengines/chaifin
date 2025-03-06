@@ -7,6 +7,60 @@
   overflow: hidden;
   margin-bottom: 16px;
   border: 1px solid rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+/* Add custom close button for task list */
+.cl-tasklist-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background-color 0.2s;
+}
+
+.cl-tasklist-close:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.cl-tasklist-close::before,
+.cl-tasklist-close::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 2px;
+  background-color: #666;
+  border-radius: 1px;
+}
+
+.cl-tasklist-close::before {
+  transform: rotate(45deg);
+}
+
+.cl-tasklist-close::after {
+  transform: rotate(-45deg);
+}
+
+/* Dark mode styles for close button */
+.dark .cl-tasklist-close {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .cl-tasklist-close:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark .cl-tasklist-close::before,
+.dark .cl-tasklist-close::after {
+  background-color: #ccc;
 }
 
 .cl-tasklist-header {
