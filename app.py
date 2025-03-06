@@ -201,20 +201,43 @@ async def on_chat_start():
         # Send the welcome message
         await cl.Message(content=welcome_message).send()
         
-        # Initialize the mode buttons by sending a mode update
-        mode_update = {
-            "type": "mode_update",
-            "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-            "privacy_mode": cl.user_session.get("privacy_mode", False),
-            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
-            "web_search_mode": cl.user_session.get("web_search_mode", False)
-        }
+        # Create action buttons for the mode toggles
+        reasoning_status = "ON" if cl.user_session.get("reasoning_mode", False) else "OFF"
+        privacy_status = "ON" if cl.user_session.get("privacy_mode", False) else "OFF"
+        deep_research_status = "ON" if cl.user_session.get("deep_research_mode", False) else "OFF"
+        web_search_status = "ON" if cl.user_session.get("web_search_mode", False) else "OFF"
         
-        # Send as a hidden message with a special author that our JS can filter out
+        actions = [
+            cl.Action(
+                name="toggle_reasoning",
+                label=f"🧠 Think: {reasoning_status}",
+                description="Toggle reasoning mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_privacy",
+                label=f"🛡️ Privacy: {privacy_status}",
+                description="Toggle privacy mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_deep_research",
+                label=f"🔍 Deep Research: {deep_research_status}",
+                description="Toggle deep research mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_web_search",
+                label=f"🌐 Web Search: {web_search_status}",
+                description="Toggle web search mode on/off",
+                payload={}
+            )
+        ]
+        
+        # Send a message with the mode toggle buttons
         await cl.Message(
-            author="system_hidden",
-            content=json.dumps(mode_update),
-            language="json"
+            content="**Available Modes:** Click to toggle",
+            actions=actions
         ).send()
         
     except Exception as e:
@@ -833,19 +856,43 @@ async def on_toggle_reasoning(action):
             ]
         ).send()
         
-        # Send a mode update to the client
-        mode_update = {
-            "type": "mode_update",
-            "reasoning_mode": new_value,
-            "privacy_mode": cl.user_session.get("privacy_mode", False),
-            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
-            "web_search_mode": cl.user_session.get("web_search_mode", False)
-        }
+        # Create updated action buttons
+        reasoning_status = "ON" if new_value else "OFF"
+        privacy_status = "ON" if cl.user_session.get("privacy_mode", False) else "OFF"
+        deep_research_status = "ON" if cl.user_session.get("deep_research_mode", False) else "OFF"
+        web_search_status = "ON" if cl.user_session.get("web_search_mode", False) else "OFF"
         
+        actions = [
+            cl.Action(
+                name="toggle_reasoning",
+                label=f"🧠 Think: {reasoning_status}",
+                description="Toggle reasoning mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_privacy",
+                label=f"🛡️ Privacy: {privacy_status}",
+                description="Toggle privacy mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_deep_research",
+                label=f"🔍 Deep Research: {deep_research_status}",
+                description="Toggle deep research mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_web_search",
+                label=f"🌐 Web Search: {web_search_status}",
+                description="Toggle web search mode on/off",
+                payload={}
+            )
+        ]
+        
+        # Send a message with the updated mode toggle buttons
         await cl.Message(
-            author="system_hidden",
-            content=json.dumps(mode_update),
-            language="json"
+            content=f"**Reasoning Mode:** {'Enabled' if new_value else 'Disabled'}",
+            actions=actions
         ).send()
         
     except Exception as e:
@@ -883,19 +930,43 @@ async def on_toggle_privacy(action):
             ]
         ).send()
         
-        # Send a mode update to the client
-        mode_update = {
-            "type": "mode_update",
-            "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-            "privacy_mode": new_value,
-            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
-            "web_search_mode": cl.user_session.get("web_search_mode", False)
-        }
+        # Create updated action buttons
+        reasoning_status = "ON" if cl.user_session.get("reasoning_mode", False) else "OFF"
+        privacy_status = "ON" if new_value else "OFF"
+        deep_research_status = "ON" if cl.user_session.get("deep_research_mode", False) else "OFF"
+        web_search_status = "ON" if cl.user_session.get("web_search_mode", False) else "OFF"
         
+        actions = [
+            cl.Action(
+                name="toggle_reasoning",
+                label=f"🧠 Think: {reasoning_status}",
+                description="Toggle reasoning mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_privacy",
+                label=f"🛡️ Privacy: {privacy_status}",
+                description="Toggle privacy mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_deep_research",
+                label=f"🔍 Deep Research: {deep_research_status}",
+                description="Toggle deep research mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_web_search",
+                label=f"🌐 Web Search: {web_search_status}",
+                description="Toggle web search mode on/off",
+                payload={}
+            )
+        ]
+        
+        # Send a message with the updated mode toggle buttons
         await cl.Message(
-            author="system_hidden",
-            content=json.dumps(mode_update),
-            language="json"
+            content=f"**Privacy Mode:** {'Enabled' if new_value else 'Disabled'}",
+            actions=actions
         ).send()
         
     except Exception as e:
@@ -920,19 +991,43 @@ async def on_toggle_deep_research(action):
         new_value = not current_value
         cl.user_session.set("deep_research_mode", new_value)
         
-        # Send a mode update to the client
-        mode_update = {
-            "type": "mode_update",
-            "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-            "privacy_mode": cl.user_session.get("privacy_mode", False),
-            "deep_research_mode": new_value,
-            "web_search_mode": cl.user_session.get("web_search_mode", False)
-        }
+        # Create updated action buttons
+        reasoning_status = "ON" if cl.user_session.get("reasoning_mode", False) else "OFF"
+        privacy_status = "ON" if cl.user_session.get("privacy_mode", False) else "OFF"
+        deep_research_status = "ON" if new_value else "OFF"
+        web_search_status = "ON" if cl.user_session.get("web_search_mode", False) else "OFF"
         
+        actions = [
+            cl.Action(
+                name="toggle_reasoning",
+                label=f"🧠 Think: {reasoning_status}",
+                description="Toggle reasoning mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_privacy",
+                label=f"🛡️ Privacy: {privacy_status}",
+                description="Toggle privacy mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_deep_research",
+                label=f"🔍 Deep Research: {deep_research_status}",
+                description="Toggle deep research mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_web_search",
+                label=f"🌐 Web Search: {web_search_status}",
+                description="Toggle web search mode on/off",
+                payload={}
+            )
+        ]
+        
+        # Send a message with the updated mode toggle buttons
         await cl.Message(
-            author="system_hidden",
-            content=json.dumps(mode_update),
-            language="json"
+            content=f"**Deep Research Mode:** {'Enabled' if new_value else 'Disabled'}",
+            actions=actions
         ).send()
         
     except Exception as e:
@@ -957,19 +1052,43 @@ async def on_toggle_web_search(action):
         new_value = not current_value
         cl.user_session.set("web_search_mode", new_value)
         
-        # Send a mode update to the client
-        mode_update = {
-            "type": "mode_update",
-            "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-            "privacy_mode": cl.user_session.get("privacy_mode", False),
-            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
-            "web_search_mode": new_value
-        }
+        # Create updated action buttons
+        reasoning_status = "ON" if cl.user_session.get("reasoning_mode", False) else "OFF"
+        privacy_status = "ON" if cl.user_session.get("privacy_mode", False) else "OFF"
+        deep_research_status = "ON" if cl.user_session.get("deep_research_mode", False) else "OFF"
+        web_search_status = "ON" if new_value else "OFF"
         
+        actions = [
+            cl.Action(
+                name="toggle_reasoning",
+                label=f"🧠 Think: {reasoning_status}",
+                description="Toggle reasoning mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_privacy",
+                label=f"🛡️ Privacy: {privacy_status}",
+                description="Toggle privacy mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_deep_research",
+                label=f"🔍 Deep Research: {deep_research_status}",
+                description="Toggle deep research mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_web_search",
+                label=f"🌐 Web Search: {web_search_status}",
+                description="Toggle web search mode on/off",
+                payload={}
+            )
+        ]
+        
+        # Send a message with the updated mode toggle buttons
         await cl.Message(
-            author="system_hidden",
-            content=json.dumps(mode_update),
-            language="json"
+            content=f"**Web Search Mode:** {'Enabled' if new_value else 'Disabled'}",
+            actions=actions
         ).send()
         
     except Exception as e:
