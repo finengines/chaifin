@@ -210,12 +210,11 @@ async def on_chat_start():
             "web_search_mode": cl.user_session.get("web_search_mode", False)
         }
         
-        # Send as a hidden message
+        # Send as a hidden message with a special author that our JS can filter out
         await cl.Message(
-            author="system",
+            author="system_hidden",
             content=json.dumps(mode_update),
-            language="json",
-            display="none"  # This makes the message hidden in the UI
+            language="json"
         ).send()
         
     except Exception as e:
@@ -844,10 +843,9 @@ async def on_toggle_reasoning(action):
         }
         
         await cl.Message(
-            author="system",
+            author="system_hidden",
             content=json.dumps(mode_update),
-            language="json",
-            display="none"  # This makes the message hidden in the UI
+            language="json"
         ).send()
         
     except Exception as e:
@@ -895,10 +893,9 @@ async def on_toggle_privacy(action):
         }
         
         await cl.Message(
-            author="system",
+            author="system_hidden",
             content=json.dumps(mode_update),
-            language="json",
-            display="none"  # This makes the message hidden in the UI
+            language="json"
         ).send()
         
     except Exception as e:
@@ -933,10 +930,9 @@ async def on_toggle_deep_research(action):
         }
         
         await cl.Message(
-            author="system",
+            author="system_hidden",
             content=json.dumps(mode_update),
-            language="json",
-            display="none"  # This makes the message hidden in the UI
+            language="json"
         ).send()
         
     except Exception as e:
@@ -971,10 +967,9 @@ async def on_toggle_web_search(action):
         }
         
         await cl.Message(
-            author="system",
+            author="system_hidden",
             content=json.dumps(mode_update),
-            language="json",
-            display="none"  # This makes the message hidden in the UI
+            language="json"
         ).send()
         
     except Exception as e:

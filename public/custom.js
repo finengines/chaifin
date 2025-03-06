@@ -688,6 +688,17 @@ function setupMessageListener() {
     return;
   }
   
+  // Add CSS to hide system_hidden messages
+  const style = document.createElement('style');
+  style.textContent = `
+    .cl-message-author[data-author="system_hidden"],
+    .cl-message-container[data-author="system_hidden"] {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+  console.log('Added CSS to hide system_hidden messages');
+  
   const originalOnMessage = window.chainlitClient.socket.onmessage;
   
   window.chainlitClient.socket.onmessage = function(event) {
@@ -700,8 +711,8 @@ function setupMessageListener() {
       console.log('Received message:', data);
       
       // Check if it's a message with content
-      if (data.message && data.message.author === 'system' && data.message.language === 'json') {
-        console.log('Found system JSON message:', data.message);
+      if (data.message && data.message.author === 'system_hidden' && data.message.language === 'json') {
+        console.log('Found system_hidden JSON message:', data.message);
         
         try {
           // Try to parse the content as JSON
@@ -715,6 +726,17 @@ function setupMessageListener() {
             updateModeButton('toggle_privacy', contentData.privacy_mode);
             updateModeButton('toggle_deep_research', contentData.deep_research_mode);
             updateModeButton('toggle_web_search', contentData.web_search_mode);
+            
+            // Hide the message element if it's visible
+            setTimeout(() => {
+              const messages = document.querySelectorAll('.cl-message-container');
+              messages.forEach(msg => {
+                const authorEl = msg.querySelector('.cl-message-author');
+                if (authorEl && authorEl.textContent.includes('system_hidden')) {
+                  msg.style.display = 'none';
+                }
+              });
+            }, 100);
           }
         } catch (e) {
           console.error('Error parsing message content as JSON:', e);
@@ -724,6 +746,35 @@ function setupMessageListener() {
       console.error('Error processing message:', e);
     }
   };
+}
+
+// Function to hide system_hidden messages
+function hideSystemHiddenMessages() {
+  console.log('Checking for system_hidden messages to hide');
+  
+  // Find all message containers
+  const messages = document.querySelectorAll('.cl-message-container');
+  let hiddenCount = 0;
+  
+  messages.forEach(msg => {
+    // Check if the message is from system_hidden
+    const authorEl = msg.querySelector('.cl-message-author');
+    if (authorEl && authorEl.textContent.includes('system_hidden')) {
+      msg.style.display = 'none';
+      hiddenCount++;
+    }
+    
+    // Also check if the message content is a mode update JSON
+    const contentEl = msg.querySelector('.cl-message-content');
+    if (contentEl && contentEl.textContent.includes('"type":"mode_update"')) {
+      msg.style.display = 'none';
+      hiddenCount++;
+    }
+  });
+  
+  if (hiddenCount > 0) {
+    console.log(`Hidden ${hiddenCount} system_hidden messages`);
+  }
 }
 
 // Initialize when the page is loaded
@@ -744,6 +795,13 @@ function init() {
       // Then add mode buttons
       setTimeout(() => {
         addModeButtons();
+        
+        // Hide any system_hidden messages
+        hideSystemHiddenMessages();
+        
+        // Set up a periodic check to hide system_hidden messages
+        setInterval(hideSystemHiddenMessages, 2000);
+        
         console.log('Initialization complete');
       }, 1000);
     } else {
