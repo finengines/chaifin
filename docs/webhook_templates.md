@@ -324,7 +324,7 @@ To mark all tasks as complete, update each task individually with a "done" statu
 To close a task list, you need to:
 
 1. Mark all tasks as complete (status: "done")
-2. Update the task list status to indicate completion
+2. Send a final update with the `is_final` flag set to `true`
 
 ```json
 {
@@ -336,7 +336,14 @@ To close a task list, you need to:
 }
 ```
 
-The `is_final` flag indicates that this is the final update for the task list. After this update, the task list will remain visible but will be considered complete.
+The `is_final` flag indicates that this is the final update for the task list. When this flag is set:
+
+1. All tasks will be marked as complete
+2. The task list status will be updated to "Completed"
+3. A completion message will be sent to the chat
+4. The task list will remain visible but will be considered complete
+
+Note: The Chainlit UI automatically adds an X button in the top-right corner of the task list that allows users to manually close the task list if needed.
 
 ### Complete Task List Example
 
