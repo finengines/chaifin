@@ -186,6 +186,8 @@ async def on_chat_start():
         # Store the initial settings in the session
         cl.user_session.set("reasoning_mode", settings.get("reasoning_mode", False))
         cl.user_session.set("privacy_mode", settings.get("privacy_mode", False))
+        cl.user_session.set("deep_research_mode", False)
+        cl.user_session.set("web_search_mode", False)
         
         # Create a welcome message
         welcome_message = f"""
@@ -199,23 +201,53 @@ async def on_chat_start():
         # Create action buttons for quick access to reasoning and privacy modes
         reasoning_action = cl.Action(
             name="toggle_reasoning",
-            label="🧠 Reasoning Mode: OFF",
+            label="🧠 Think",
             description="Toggle reasoning mode on/off",
             payload={}
         )
         
         privacy_action = cl.Action(
             name="toggle_privacy",
-            label="🛡️ Privacy Mode: OFF",
+            label="🛡️ Privacy",
             description="Toggle privacy mode on/off",
+            payload={}
+        )
+        
+        deep_research_action = cl.Action(
+            name="toggle_deep_research",
+            label="🔍 Deep Research",
+            description="Toggle deep research mode on/off",
+            payload={}
+        )
+        
+        web_search_action = cl.Action(
+            name="toggle_web_search",
+            label="🌐 Web Search",
+            description="Toggle web search mode on/off",
             payload={}
         )
         
         # Send the welcome message with action buttons
         await cl.Message(
             content=welcome_message,
-            actions=[reasoning_action, privacy_action]
+            actions=[reasoning_action, privacy_action, deep_research_action, web_search_action]
         ).send()
+        
+        # Send a message with instructions on how to use the buttons
+        instructions = """
+        ## Available Modes
+        
+        Click on any button to toggle the mode on/off:
+        
+        - **🧠 Think**: AI will show its reasoning process
+        - **🛡️ Privacy**: Your conversation won't be stored for training
+        - **🔍 Deep Research**: More thorough analysis of your questions
+        - **🌐 Web Search**: Search the web for information
+        
+        You can use these modes individually or in combination.
+        """
+        
+        await cl.Message(content=instructions).send()
         
     except Exception as e:
         error_message = f"Error in on_chat_start: {str(e)}"
@@ -415,7 +447,9 @@ async def on_message(message: cl.Message):
             "temperature": 0.7,
             "max_tokens": 2048,
             "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-            "privacy_mode": cl.user_session.get("privacy_mode", False)
+            "privacy_mode": cl.user_session.get("privacy_mode", False),
+            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+            "web_search_mode": cl.user_session.get("web_search_mode", False)
         }
         
         # Add any custom toggles to the payload
@@ -841,7 +875,7 @@ async def on_toggle_reasoning(action):
         status = "ON" if new_value else "OFF"
         new_action = cl.Action(
             name="toggle_reasoning",
-            label=f"🧠 Reasoning Mode: {status}",
+            label="🧠 Think",
             description="Toggle reasoning mode on/off",
             payload={}
         )
@@ -892,7 +926,7 @@ async def on_toggle_privacy(action):
         status = "ON" if new_value else "OFF"
         new_action = cl.Action(
             name="toggle_privacy",
-            label=f"🛡️ Privacy Mode: {status}",
+            label="🛡️ Privacy",
             description="Toggle privacy mode on/off",
             payload={}
         )
@@ -908,6 +942,82 @@ async def on_toggle_privacy(action):
         print(error_message)
         logger.error(error_message)
         await cl.Message(content=f"Error toggling privacy mode: {str(e)}").send()
+
+@cl.action_callback("toggle_deep_research")
+async def on_toggle_deep_research(action):
+    """
+    Handle the toggle_deep_research action.
+    
+    This function is called when the user clicks the deep research mode toggle button.
+    It toggles the deep research mode and updates the UI.
+    
+    Args:
+        action: The action object containing information about the button click
+    """
+    try:
+        # Toggle the deep research mode
+        current_value = cl.user_session.get("deep_research_mode", False)
+        new_value = not current_value
+        cl.user_session.set("deep_research_mode", new_value)
+        
+        # Create a new action button with updated state
+        status = "ON" if new_value else "OFF"
+        new_action = cl.Action(
+            name="toggle_deep_research",
+            label="🔍 Deep Research",
+            description="Toggle deep research mode on/off",
+            payload={}
+        )
+        
+        # Send a message to confirm the change
+        await cl.Message(
+            content=f"Deep research mode turned **{status}**",
+            actions=[new_action]
+        ).send()
+        
+    except Exception as e:
+        error_message = f"Error handling toggle_deep_research action: {str(e)}"
+        print(error_message)
+        logger.error(error_message)
+        await cl.Message(content=f"Error toggling deep research mode: {str(e)}").send()
+
+@cl.action_callback("toggle_web_search")
+async def on_toggle_web_search(action):
+    """
+    Handle the toggle_web_search action.
+    
+    This function is called when the user clicks the web search mode toggle button.
+    It toggles the web search mode and updates the UI.
+    
+    Args:
+        action: The action object containing information about the button click
+    """
+    try:
+        # Toggle the web search mode
+        current_value = cl.user_session.get("web_search_mode", False)
+        new_value = not current_value
+        cl.user_session.set("web_search_mode", new_value)
+        
+        # Create a new action button with updated state
+        status = "ON" if new_value else "OFF"
+        new_action = cl.Action(
+            name="toggle_web_search",
+            label="🌐 Web Search",
+            description="Toggle web search mode on/off",
+            payload={}
+        )
+        
+        # Send a message to confirm the change
+        await cl.Message(
+            content=f"Web search mode turned **{status}**",
+            actions=[new_action]
+        ).send()
+        
+    except Exception as e:
+        error_message = f"Error handling toggle_web_search action: {str(e)}"
+        print(error_message)
+        logger.error(error_message)
+        await cl.Message(content=f"Error toggling web search mode: {str(e)}").send()
 
 @cl.action_callback
 async def on_action(action):
@@ -1000,7 +1110,9 @@ async def on_action(action):
                 "provider": provider,
                 "model": model_id,
                 "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-                "privacy_mode": cl.user_session.get("privacy_mode", False)
+                "privacy_mode": cl.user_session.get("privacy_mode", False),
+                "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+                "web_search_mode": cl.user_session.get("web_search_mode", False)
             }
             
             # Add any custom toggles to the payload
@@ -1049,59 +1161,68 @@ async def list_custom_widgets():
         custom_widgets = cl.user_session.get("custom_widgets", {})
         
         if not custom_widgets:
-            await cl.Message(content="No custom widgets have been created yet.").send()
-            return
-        
-        # Create a message with the list of widgets
-        widgets_list = "# Custom Widgets\n\n"
-        
-        # List buttons
-        buttons = [
-            (widget_id, widget_info) 
-            for widget_id, widget_info in custom_widgets.items() 
-            if widget_info.get("type") == "button"
-        ]
-        
-        if buttons:
-            widgets_list += "## Buttons\n\n"
-            for widget_id, widget_info in buttons:
-                label = widget_info.get("label", "Unnamed Button")
-                icon = widget_info.get("icon", "")
-                description = widget_info.get("description", "No description")
-                display_label = f"{icon} {label}".strip()
-                widgets_list += f"- **{display_label}** (ID: `{widget_id}`): {description}\n"
-            widgets_list += "\n"
-        
-        # List toggles
-        toggles = [
-            (widget_id, widget_info) 
-            for widget_id, widget_info in custom_widgets.items() 
-            if widget_info.get("type") == "toggle"
-        ]
-        
-        if toggles:
-            widgets_list += "## Toggles\n\n"
-            for widget_id, widget_info in toggles:
-                label = widget_info.get("label", "Unnamed Toggle")
-                icon = widget_info.get("icon", "")
-                description = widget_info.get("description", "No description")
-                value = cl.user_session.get(widget_id, False)
-                status = "Enabled" if value else "Disabled"
-                display_label = f"{icon} {label}".strip()
-                widgets_list += f"- **{display_label}** (ID: `{widget_id}`): {description} - *{status}*\n"
+            widgets_list = "# No custom widgets have been created yet.\n\n"
+        else:
+            # Create a message with the list of widgets
+            widgets_list = "# Custom Widgets\n\n"
+            
+            # List buttons
+            buttons = [
+                (widget_id, widget_info) 
+                for widget_id, widget_info in custom_widgets.items() 
+                if widget_info.get("type") == "button"
+            ]
+            
+            if buttons:
+                widgets_list += "## Buttons\n\n"
+                for widget_id, widget_info in buttons:
+                    label = widget_info.get("label", "Unnamed Button")
+                    icon = widget_info.get("icon", "")
+                    description = widget_info.get("description", "No description")
+                    display_label = f"{icon} {label}".strip()
+                    widgets_list += f"- **{display_label}** (ID: `{widget_id}`): {description}\n"
+                widgets_list += "\n"
+            
+            # List toggles
+            toggles = [
+                (widget_id, widget_info) 
+                for widget_id, widget_info in custom_widgets.items() 
+                if widget_info.get("type") == "toggle"
+            ]
+            
+            if toggles:
+                widgets_list += "## Toggles\n\n"
+                for widget_id, widget_info in toggles:
+                    label = widget_info.get("label", "Unnamed Toggle")
+                    icon = widget_info.get("icon", "")
+                    description = widget_info.get("description", "No description")
+                    value = cl.user_session.get(widget_id, False)
+                    status = "Enabled" if value else "Disabled"
+                    display_label = f"{icon} {label}".strip()
+                    widgets_list += f"- **{display_label}** (ID: `{widget_id}`): {description} - *{status}*\n"
         
         # Add built-in toggles
-        widgets_list += "\n## Built-in Toggles\n\n"
+        widgets_list += "\n## Built-in Modes\n\n"
         
         # Reasoning Mode
         reasoning_mode = cl.user_session.get("reasoning_mode", False)
         reasoning_status = "Enabled" if reasoning_mode else "Disabled"
-        widgets_list += f"- **🧠 Reasoning Mode**: When enabled, the AI will show its reasoning process - *{reasoning_status}*\n"
+        widgets_list += f"- **🧠 Think**: When enabled, the AI will show its reasoning process - *{reasoning_status}*\n"
         
         # Privacy Mode
         privacy_mode = cl.user_session.get("privacy_mode", False)
         privacy_status = "Enabled" if privacy_mode else "Disabled"
-        widgets_list += f"- **🛡️ Privacy Mode**: When enabled, your conversation won't be stored for training - *{privacy_status}*\n"
+        widgets_list += f"- **🛡️ Privacy**: When enabled, your conversation won't be stored for training - *{privacy_status}*\n"
+        
+        # Deep Research Mode
+        deep_research_mode = cl.user_session.get("deep_research_mode", False)
+        deep_research_status = "Enabled" if deep_research_mode else "Disabled"
+        widgets_list += f"- **🔍 Deep Research**: More thorough analysis of your questions - *{deep_research_status}*\n"
+        
+        # Web Search Mode
+        web_search_mode = cl.user_session.get("web_search_mode", False)
+        web_search_status = "Enabled" if web_search_mode else "Disabled"
+        widgets_list += f"- **🌐 Web Search**: Search the web for information - *{web_search_status}*\n"
         
         # Create action buttons for the toggles
         actions = []
@@ -1109,11 +1230,13 @@ async def list_custom_widgets():
         # Add built-in toggle actions
         reasoning_btn_status = "ON" if reasoning_mode else "OFF"
         privacy_btn_status = "ON" if privacy_mode else "OFF"
+        deep_research_btn_status = "ON" if deep_research_mode else "OFF"
+        web_search_btn_status = "ON" if web_search_mode else "OFF"
         
         actions.append(
             cl.Action(
                 name="toggle_reasoning",
-                label=f"🧠 Reasoning Mode: {reasoning_btn_status}",
+                label="🧠 Think",
                 description="Toggle reasoning mode on/off",
                 payload={}
             )
@@ -1122,8 +1245,26 @@ async def list_custom_widgets():
         actions.append(
             cl.Action(
                 name="toggle_privacy",
-                label=f"🛡️ Privacy Mode: {privacy_btn_status}",
+                label="🛡️ Privacy",
                 description="Toggle privacy mode on/off",
+                payload={}
+            )
+        )
+        
+        actions.append(
+            cl.Action(
+                name="toggle_deep_research",
+                label="🔍 Deep Research",
+                description="Toggle deep research mode on/off",
+                payload={}
+            )
+        )
+        
+        actions.append(
+            cl.Action(
+                name="toggle_web_search",
+                label="🌐 Web Search",
+                description="Toggle web search mode on/off",
                 payload={}
             )
         )
@@ -1153,36 +1294,47 @@ async def list_custom_widgets():
         ).send()
         
     except Exception as e:
-        error_message = f"Error listing custom widgets: {str(e)}"
+        error_message = f"Error listing widgets: {str(e)}"
         print(error_message)
         logger.error(error_message)
-        await cl.Message(content=f"Error listing custom widgets: {str(e)}").send()
+        await cl.Message(content=f"Error listing widgets: {str(e)}").send()
 
 async def show_widgets_help():
     """
-    Show help information about custom widgets.
+    Show help information about widgets and modes.
     """
     try:
         help_text = """
-        # Custom Widgets Help
+        # Modes and Widgets Help
         
-        You can create custom buttons and toggles that will send additional flags to n8n along with your messages.
+        You can use various modes to customize how the AI responds to your questions.
         
-        ## Available Commands
+        ## Built-in Modes
+        
+        - **🧠 Think**: When enabled, the AI will show its reasoning process
+        - **🛡️ Privacy**: When enabled, your conversation won't be stored for training
+        - **🔍 Deep Research**: More thorough analysis of your questions
+        - **🌐 Web Search**: Search the web for information
+        
+        ## Custom Widgets
+        
+        You can create custom buttons and toggles that will send additional flags to the backend.
+        
+        ### Available Commands
         
         - `/add_button ID Label [Icon] [Description]` - Add a custom button
         - `/add_toggle ID Label [Icon] [Description]` - Add a custom toggle switch
-        - `/list_widgets` - List all custom widgets
+        - `/list_widgets` - List all widgets and modes
         - `/help_widgets` - Show this help message
         
-        ## Examples
+        ### Examples
         
         ```
         /add_button search_web Search Web 🔍 Search the web for information
         /add_toggle debug_mode Debug Mode 🐛 Enable detailed debugging information
         ```
         
-        ## Icons
+        ### Icons
         
         You can use emoji icons with your buttons and toggles. Here are some useful ones:
         
@@ -1197,47 +1349,48 @@ async def show_widgets_help():
         - 📧 Email (for email operations)
         - 🔔 Bell (for notifications)
         
-        ## How It Works
+        ### How It Works
         
-        - **Buttons**: When clicked, they send an action to n8n with the button's ID
-        - **Toggles**: Their state (on/off) is included with every message sent to n8n
-        
-        ## Action Buttons vs. Settings
-        
-        There are two ways to interact with toggles:
-        
-        1. **Action Buttons**: Visible buttons in the chat interface that you can click to toggle features on/off
-        2. **Settings Panel**: Access by clicking the settings icon (⚙️) in the top-right corner
-        
-        Both methods control the same settings, so use whichever is more convenient for you.
-        
-        ## Built-in Toggles
-        
-        - **🧠 Reasoning Mode**: When enabled, the AI will show its reasoning process
-        - **🛡️ Privacy Mode**: When enabled, your conversation won't be stored for training
+        - **Buttons**: When clicked, they send an action to the backend
+        - **Toggles**: Their state (on/off) is included with every message sent
         """
         
         # Create action buttons for the help message
         reasoning_status = "ON" if cl.user_session.get("reasoning_mode", False) else "OFF"
         privacy_status = "ON" if cl.user_session.get("privacy_mode", False) else "OFF"
+        deep_research_status = "ON" if cl.user_session.get("deep_research_mode", False) else "OFF"
+        web_search_status = "ON" if cl.user_session.get("web_search_mode", False) else "OFF"
         
-        reasoning_action = cl.Action(
-            name="toggle_reasoning",
-            label=f"🧠 Reasoning Mode: {reasoning_status}",
-            description="Toggle reasoning mode on/off",
-            payload={}
-        )
-        
-        privacy_action = cl.Action(
-            name="toggle_privacy",
-            label=f"🛡️ Privacy Mode: {privacy_status}",
-            description="Toggle privacy mode on/off",
-            payload={}
-        )
+        actions = [
+            cl.Action(
+                name="toggle_reasoning",
+                label="🧠 Think",
+                description="Toggle reasoning mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_privacy",
+                label="🛡️ Privacy",
+                description="Toggle privacy mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_deep_research",
+                label="🔍 Deep Research",
+                description="Toggle deep research mode on/off",
+                payload={}
+            ),
+            cl.Action(
+                name="toggle_web_search",
+                label="🌐 Web Search",
+                description="Toggle web search mode on/off",
+                payload={}
+            )
+        ]
         
         await cl.Message(
             content=help_text,
-            actions=[reasoning_action, privacy_action]
+            actions=actions
         ).send()
         
     except Exception as e:
