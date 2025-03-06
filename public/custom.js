@@ -551,11 +551,31 @@ function createModeButtonsContainer() {
 function addModeButtons() {
   console.log('Attempting to add mode buttons');
   
-  // Check if the chat input exists
-  const chatInput = document.querySelector('.cl-chat-input-container');
+  // Try different selectors for the chat input container
+  const selectors = [
+    '.cl-chat-input-container',
+    '.cl-chat-container',
+    '.cl-input-container',
+    '[data-testid="chat-input-container"]',
+    '.cl-chat-input',
+    '.cl-input-box'
+  ];
+  
+  let chatInput = null;
+  
+  // Try each selector
+  for (const selector of selectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      console.log(`Found element with selector: ${selector}`, element);
+      chatInput = element;
+      break;
+    }
+  }
+  
   if (!chatInput) {
-    console.log('Chat input container not found, retrying in 500ms');
-    setTimeout(addModeButtons, 500);
+    console.log('Chat input container not found with any selector, retrying in 1000ms');
+    setTimeout(addModeButtons, 1000);
     return;
   }
   
@@ -585,9 +605,37 @@ function addModeButtons() {
   container.appendChild(deepResearchButton);
   container.appendChild(webSearchButton);
   
-  // Insert container before the chat input
-  console.log('Inserting mode buttons container before chat input');
-  chatInput.parentNode.insertBefore(container, chatInput);
+  // Try different insertion methods
+  try {
+    console.log('Trying to insert before chat input');
+    chatInput.parentNode.insertBefore(container, chatInput);
+    console.log('Successfully inserted before chat input');
+  } catch (e) {
+    console.error('Error inserting before chat input:', e);
+    
+    try {
+      console.log('Trying to append to chat input parent');
+      chatInput.parentNode.appendChild(container);
+      console.log('Successfully appended to chat input parent');
+    } catch (e) {
+      console.error('Error appending to chat input parent:', e);
+      
+      try {
+        console.log('Trying to append to body');
+        document.body.appendChild(container);
+        console.log('Successfully appended to body');
+        
+        // Position at the bottom of the screen
+        container.style.position = 'fixed';
+        container.style.bottom = '80px';
+        container.style.left = '0';
+        container.style.right = '0';
+        container.style.zIndex = '1000';
+      } catch (e) {
+        console.error('Error appending to body:', e);
+      }
+    }
+  }
   
   console.log('Mode buttons added successfully');
   
@@ -682,30 +730,45 @@ function setupMessageListener() {
 function init() {
   console.log('Initializing custom UI components');
   
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    console.log('Document is ready, checking for chainlitClient');
+  // Function to check if chainlit is ready
+  const checkChainlit = () => {
+    console.log('Checking if chainlit is ready...');
     
     // Check if chainlitClient is available
     if (window.chainlitClient) {
       console.log('chainlitClient found, adding mode buttons and setting up listeners');
-      addModeButtons();
+      
+      // Setup message listener first
       setupMessageListener();
-      console.log('Initialization complete');
+      
+      // Then add mode buttons
+      setTimeout(() => {
+        addModeButtons();
+        console.log('Initialization complete');
+      }, 1000);
     } else {
-      // Try again in 500ms
-      console.log('chainlitClient not found, retrying in 500ms');
-      setTimeout(init, 500);
+      // Try again in 1000ms
+      console.log('chainlitClient not found, retrying in 1000ms');
+      setTimeout(checkChainlit, 1000);
     }
+  };
+  
+  // Start checking if document is ready
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    console.log('Document is ready, starting chainlit check');
+    checkChainlit();
   } else {
     // Wait for the page to load
     console.log('Document not ready, waiting for DOMContentLoaded');
     window.addEventListener('DOMContentLoaded', () => {
-      console.log('DOMContentLoaded fired, initializing');
-      init();
+      console.log('DOMContentLoaded fired, starting chainlit check');
+      checkChainlit();
     });
   }
 }
 
-// Start initialization
-console.log('Starting initialization');
-init(); 
+// Start initialization with a delay to ensure the page is fully loaded
+console.log('Starting initialization with delay');
+setTimeout(() => {
+  init();
+}, 2000); 
