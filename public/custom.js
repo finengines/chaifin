@@ -490,6 +490,8 @@ document.addEventListener('chainlit:update', () => {
 // Custom JavaScript to add persistent mode buttons below the chat input
 
 function createModeButton(id, label, isActive = false) {
+  console.log(`Creating mode button: ${id}, label: ${label}, isActive: ${isActive}`);
+  
   const button = document.createElement('button');
   button.id = id;
   button.className = `mode-button ${isActive ? 'active' : ''}`;
@@ -497,10 +499,15 @@ function createModeButton(id, label, isActive = false) {
   
   // Add click event listener
   button.addEventListener('click', () => {
+    console.log(`Mode button clicked: ${id}`);
+    
     // Toggle active state
     button.classList.toggle('active');
+    const isNowActive = button.classList.contains('active');
+    console.log(`Button ${id} is now ${isNowActive ? 'active' : 'inactive'}`);
     
     // Send message to backend
+    console.log(`Sending action message for ${id}`);
     window.chainlitClient.sendMessage({
       type: 'action',
       name: id,
@@ -508,17 +515,23 @@ function createModeButton(id, label, isActive = false) {
     });
   });
   
+  console.log(`Mode button created: ${id}`);
   return button;
 }
 
 function updateModeButton(id, isActive) {
+  console.log(`Updating mode button: ${id}, isActive: ${isActive}`);
+  
   const button = document.getElementById(id);
   if (button) {
+    console.log(`Found button ${id}, updating state to ${isActive ? 'active' : 'inactive'}`);
     if (isActive) {
       button.classList.add('active');
     } else {
       button.classList.remove('active');
     }
+  } else {
+    console.error(`Button with id ${id} not found`);
   }
 }
 
@@ -536,23 +549,31 @@ function createModeButtonsContainer() {
 }
 
 function addModeButtons() {
+  console.log('Attempting to add mode buttons');
+  
   // Check if the chat input exists
   const chatInput = document.querySelector('.cl-chat-input-container');
   if (!chatInput) {
-    // Try again in 500ms
+    console.log('Chat input container not found, retrying in 500ms');
     setTimeout(addModeButtons, 500);
     return;
   }
   
+  console.log('Found chat input container:', chatInput);
+  
   // Check if we've already added the buttons
   if (document.getElementById('mode-buttons-container')) {
+    console.log('Mode buttons container already exists, skipping');
     return;
   }
+  
+  console.log('Creating mode buttons container');
   
   // Create container
   const container = createModeButtonsContainer();
   
   // Create buttons
+  console.log('Creating mode buttons');
   const thinkButton = createModeButton('toggle_reasoning', '🧠 Think');
   const privacyButton = createModeButton('toggle_privacy', '🛡️ Privacy');
   const deepResearchButton = createModeButton('toggle_deep_research', '🔍 Deep Research');
@@ -565,9 +586,13 @@ function addModeButtons() {
   container.appendChild(webSearchButton);
   
   // Insert container before the chat input
+  console.log('Inserting mode buttons container before chat input');
   chatInput.parentNode.insertBefore(container, chatInput);
   
+  console.log('Mode buttons added successfully');
+  
   // Add CSS for the buttons
+  console.log('Adding CSS for mode buttons');
   const style = document.createElement('style');
   style.textContent = `
     #mode-buttons-container {
@@ -601,54 +626,86 @@ function addModeButtons() {
     }
   `;
   document.head.appendChild(style);
+  console.log('CSS added for mode buttons');
 }
 
 // Listen for messages from the backend to update button states
 function setupMessageListener() {
+  console.log('Setting up message listener for mode updates');
+  
+  // Check if chainlitClient exists
+  if (!window.chainlitClient || !window.chainlitClient.socket) {
+    console.error('chainlitClient or socket not found, retrying in 1s');
+    setTimeout(setupMessageListener, 1000);
+    return;
+  }
+  
   const originalOnMessage = window.chainlitClient.socket.onmessage;
   
   window.chainlitClient.socket.onmessage = function(event) {
     // Call the original handler
     originalOnMessage.call(this, event);
     
-    // Parse the message
-    const data = JSON.parse(event.data);
-    
-    // Check if it's a message with content
-    if (data.message && data.message.author === 'system' && data.message.language === 'json') {
-      try {
-        // Try to parse the content as JSON
-        const contentData = JSON.parse(data.message.content);
+    try {
+      // Parse the message
+      const data = JSON.parse(event.data);
+      console.log('Received message:', data);
+      
+      // Check if it's a message with content
+      if (data.message && data.message.author === 'system' && data.message.language === 'json') {
+        console.log('Found system JSON message:', data.message);
         
-        // Check if it's a mode update message
-        if (contentData.type === 'mode_update') {
-          updateModeButton('toggle_reasoning', contentData.reasoning_mode);
-          updateModeButton('toggle_privacy', contentData.privacy_mode);
-          updateModeButton('toggle_deep_research', contentData.deep_research_mode);
-          updateModeButton('toggle_web_search', contentData.web_search_mode);
+        try {
+          // Try to parse the content as JSON
+          const contentData = JSON.parse(data.message.content);
+          console.log('Parsed content data:', contentData);
+          
+          // Check if it's a mode update message
+          if (contentData.type === 'mode_update') {
+            console.log('Processing mode update:', contentData);
+            updateModeButton('toggle_reasoning', contentData.reasoning_mode);
+            updateModeButton('toggle_privacy', contentData.privacy_mode);
+            updateModeButton('toggle_deep_research', contentData.deep_research_mode);
+            updateModeButton('toggle_web_search', contentData.web_search_mode);
+          }
+        } catch (e) {
+          console.error('Error parsing message content as JSON:', e);
         }
-      } catch (e) {
-        console.error('Error parsing message content as JSON:', e);
       }
+    } catch (e) {
+      console.error('Error processing message:', e);
     }
   };
 }
 
 // Initialize when the page is loaded
 function init() {
+  console.log('Initializing custom UI components');
+  
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    console.log('Document is ready, checking for chainlitClient');
+    
     // Check if chainlitClient is available
     if (window.chainlitClient) {
+      console.log('chainlitClient found, adding mode buttons and setting up listeners');
       addModeButtons();
       setupMessageListener();
+      console.log('Initialization complete');
     } else {
       // Try again in 500ms
+      console.log('chainlitClient not found, retrying in 500ms');
       setTimeout(init, 500);
     }
   } else {
     // Wait for the page to load
-    window.addEventListener('DOMContentLoaded', init);
+    console.log('Document not ready, waiting for DOMContentLoaded');
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('DOMContentLoaded fired, initializing');
+      init();
+    });
   }
 }
 
+// Start initialization
+console.log('Starting initialization');
 init(); 
