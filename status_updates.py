@@ -399,6 +399,7 @@ async def animated_progress(title: str, message: str, steps: List[str], delay: f
 class StyledTaskList:
     """
     A styled task list for displaying progress of multiple tasks.
+    The TaskList will be displayed on the right side of the chat interface.
     """
     
     def __init__(self, title: str = "Processing Tasks", **kwargs):
@@ -416,7 +417,11 @@ class StyledTaskList:
     
     async def create(self) -> None:
         """Create the task list."""
-        self.task_list = await cl.TaskList(title=self.title, **self.kwargs)
+        # Ensure the task list is created with the correct display settings
+        # TaskList is a special element that should always be displayed on the right side
+        self.task_list = cl.TaskList(title=self.title, **self.kwargs)
+        # Send the task list to display it
+        await self.task_list.send()
     
     async def add_task(self, name: str, status: str = "running", icon: Optional[str] = None) -> cl.Task:
         """
@@ -424,7 +429,7 @@ class StyledTaskList:
         
         Args:
             name: The name of the task
-            status: The status of the task (running, done, failed, pending)
+            status: The status of the task (running, done, failed, ready)
             icon: Lucide icon name (optional)
             
         Returns:
@@ -441,12 +446,16 @@ class StyledTaskList:
                 icon = "check-circle"
             elif status == "failed":
                 icon = "x-circle"
-            elif status == "pending":
+            elif status == "ready":
                 icon = "clock"
         
         task = cl.Task(title=name, status=self._get_task_status(status), icon=icon)
         self.tasks[name] = task
         await self.task_list.add_task(task)
+        
+        # Ensure the task list is sent to update the UI
+        await self.task_list.send()
+        
         return task
     
     async def update_task(self, name: str, status: str, icon: Optional[str] = None) -> None:
@@ -463,7 +472,13 @@ class StyledTaskList:
             task.status = self._get_task_status(status)
             if icon:
                 task.icon = icon
-            await task.update()
+            
+            # In newer Chainlit versions, Task objects don't have an update() method
+            # Instead, we need to send the entire task list again to update the UI
+            await self.task_list.send()
+        else:
+            # If task doesn't exist, create it
+            await self.add_task(name, status, icon)
     
     def _get_task_status(self, status: str) -> cl.TaskStatus:
         """Convert string status to TaskStatus enum."""
@@ -473,8 +488,11 @@ class StyledTaskList:
             return cl.TaskStatus.DONE
         elif status == "failed":
             return cl.TaskStatus.FAILED
+        elif status == "ready":
+            return cl.TaskStatus.READY
         else:
-            return cl.TaskStatus.PENDING
+            # Default to READY for any other status
+            return cl.TaskStatus.READY
 
 # ===== TOAST NOTIFICATIONS =====
 

@@ -248,17 +248,45 @@ async def on_chat_start():
                             # Handle task list updates
                             try:
                                 tasks = update.get("tasks", [])
-                                task_list = StyledTaskList(title=title)
-                                await task_list.create()
                                 
-                                for task in tasks:
-                                    task_name = task.get("name", "Task")
+                                # Create a native Chainlit TaskList following the official documentation
+                                task_list = cl.TaskList(title=title)
+                                
+                                # First message to associate with tasks
+                                first_message = await cl.Message(content=f"Processing: {title}").send()
+                                
+                                # Add tasks to the list
+                                for i, task in enumerate(tasks):
+                                    task_name = task.get("name", f"Task {i+1}")
                                     task_status = task.get("status", "running")
                                     task_icon = task.get("icon", None)
-                                    await task_list.add_task(task_name, task_status, task_icon)
+                                    
+                                    # Convert string status to TaskStatus enum
+                                    status_enum = cl.TaskStatus.RUNNING
+                                    if task_status == "done":
+                                        status_enum = cl.TaskStatus.DONE
+                                    elif task_status == "failed":
+                                        status_enum = cl.TaskStatus.FAILED
+                                    elif task_status == "ready":
+                                        status_enum = cl.TaskStatus.READY
+                                    
+                                    # Create the task
+                                    task_obj = cl.Task(title=task_name, status=status_enum, icon=task_icon)
+                                    
+                                    # Link the first task to the first message
+                                    if i == 0:
+                                        task_obj.forId = first_message.id
+                                    
+                                    # Add the task to the list
+                                    await task_list.add_task(task_obj)
                                 
-                                # Store the task list in the user session
+                                # Send the task list to display it on the right side
+                                await task_list.send()
+                                
+                                # Store the task list and tasks in the user session
                                 cl.user_session.set("current_task_list", task_list)
+                                cl.user_session.set("current_tasks", {task.get("name"): task for task in tasks})
+                                
                                 logger.info(f"Created task list with {len(tasks)} tasks")
                             except Exception as e:
                                 logger.error(f"Error creating task list: {str(e)}")
@@ -269,12 +297,16 @@ async def on_chat_start():
                         elif update_type == "task-list-create":
                             # Handle task list creation
                             try:
-                                # Create a new task list
-                                task_list = StyledTaskList(title=title)
-                                await task_list.create()
+                                # Create a native Chainlit TaskList
+                                task_list = cl.TaskList(title=title)
+                                
+                                # Send the task list to display it on the right side
+                                await task_list.send()
                                 
                                 # Store the task list in the user session
                                 cl.user_session.set("current_task_list", task_list)
+                                cl.user_session.set("current_tasks", {})
+                                
                                 logger.info(f"Created task list: {title}")
                             except Exception as e:
                                 logger.error(f"Error creating task list: {str(e)}")
@@ -291,13 +323,43 @@ async def on_chat_start():
                                 
                                 # Get the current task list or create a new one
                                 task_list = cl.user_session.get("current_task_list")
-                                if not task_list:
-                                    task_list = StyledTaskList(title="Processing Tasks")
-                                    await task_list.create()
-                                    cl.user_session.set("current_task_list", task_list)
+                                current_tasks = cl.user_session.get("current_tasks", {})
                                 
-                                # Add the task to the task list
-                                await task_list.add_task(task_name, task_status, task_icon)
+                                if not task_list:
+                                    # Create a new task list
+                                    task_list = cl.TaskList(title="Processing Tasks")
+                                    
+                                    # Send the task list to display it
+                                    await task_list.send()
+                                    
+                                    # Store the task list in the user session
+                                    cl.user_session.set("current_task_list", task_list)
+                                    current_tasks = {}
+                                
+                                # Create a message for this task
+                                task_message = await cl.Message(content=f"**{task_name}**: Started").send()
+                                
+                                # Convert string status to TaskStatus enum
+                                status_enum = cl.TaskStatus.RUNNING
+                                if task_status == "done":
+                                    status_enum = cl.TaskStatus.DONE
+                                elif task_status == "failed":
+                                    status_enum = cl.TaskStatus.FAILED
+                                elif task_status == "ready":
+                                    status_enum = cl.TaskStatus.READY
+                                
+                                # Create and add the task
+                                task_obj = cl.Task(title=task_name, status=status_enum, icon=task_icon)
+                                task_obj.forId = task_message.id  # Link the task to the message
+                                await task_list.add_task(task_obj)
+                                
+                                # Update the current tasks
+                                current_tasks[task_name] = {"status": task_status, "icon": task_icon}
+                                cl.user_session.set("current_tasks", current_tasks)
+                                
+                                # Send the task list to update the UI
+                                await task_list.send()
+                                
                                 logger.info(f"Added task to task list: {task_name}")
                             except Exception as e:
                                 logger.error(f"Error adding task to task list: {str(e)}")
@@ -314,16 +376,84 @@ async def on_chat_start():
                                 
                                 # Get the current task list
                                 task_list = cl.user_session.get("current_task_list")
+                                
                                 if task_list:
-                                    await task_list.update_task(task_name, task_status, task_icon)
+                                    # Create a message for this update
+                                    update_message = await cl.Message(content=f"**{task_name}**: {task_status.capitalize()}").send()
+                                    
+                                    # Find the task to update
+                                    found_task = None
+                                    for task in task_list.tasks:
+                                        if task.title == task_name:
+                                            found_task = task
+                                            break
+                                    
+                                    if found_task:
+                                        # Update the task status
+                                        if task_status == "done":
+                                            found_task.status = cl.TaskStatus.DONE
+                                        elif task_status == "failed":
+                                            found_task.status = cl.TaskStatus.FAILED
+                                        elif task_status == "ready":
+                                            found_task.status = cl.TaskStatus.READY
+                                        elif task_status == "running":
+                                            found_task.status = cl.TaskStatus.RUNNING
+                                        
+                                        # Update the task icon if provided
+                                        if task_icon:
+                                            found_task.icon = task_icon
+                                        
+                                        # Link the task to the new message
+                                        found_task.forId = update_message.id
+                                    else:
+                                        # Task not found, create a new one
+                                        # Convert string status to TaskStatus enum
+                                        status_enum = cl.TaskStatus.RUNNING
+                                        if task_status == "done":
+                                            status_enum = cl.TaskStatus.DONE
+                                        elif task_status == "failed":
+                                            status_enum = cl.TaskStatus.FAILED
+                                        elif task_status == "ready":
+                                            status_enum = cl.TaskStatus.READY
+                                        
+                                        # Create and add the task
+                                        task_obj = cl.Task(title=task_name, status=status_enum, icon=task_icon)
+                                        task_obj.forId = update_message.id  # Link the task to the message
+                                        await task_list.add_task(task_obj)
+                                    
+                                    # Send the task list to update the UI
+                                    await task_list.send()
+                                    
                                     logger.info(f"Updated task in task list: {task_name} to {task_status}")
                                 else:
                                     logger.warning("No task list found to update task")
-                                    # Create a new task list and add the task
-                                    task_list = StyledTaskList(title="Processing Tasks")
-                                    await task_list.create()
-                                    await task_list.add_task(task_name, task_status, task_icon)
+                                    # Create a new task list
+                                    task_list = cl.TaskList(title="Processing Tasks")
+                                    
+                                    # Create a message for this task
+                                    task_message = await cl.Message(content=f"**{task_name}**: {task_status.capitalize()}").send()
+                                    
+                                    # Convert string status to TaskStatus enum
+                                    status_enum = cl.TaskStatus.RUNNING
+                                    if task_status == "done":
+                                        status_enum = cl.TaskStatus.DONE
+                                    elif task_status == "failed":
+                                        status_enum = cl.TaskStatus.FAILED
+                                    elif task_status == "ready":
+                                        status_enum = cl.TaskStatus.READY
+                                    
+                                    # Create and add the task
+                                    task_obj = cl.Task(title=task_name, status=status_enum, icon=task_icon)
+                                    task_obj.forId = task_message.id  # Link the task to the message
+                                    await task_list.add_task(task_obj)
+                                    
+                                    # Send the task list to display it
+                                    await task_list.send()
+                                    
+                                    # Store the task list in the user session
                                     cl.user_session.set("current_task_list", task_list)
+                                    cl.user_session.set("current_tasks", {task_name: {"status": task_status, "icon": task_icon}})
+                                    
                                     logger.info(f"Created new task list and added task: {task_name}")
                             except Exception as e:
                                 logger.error(f"Error updating task in task list: {str(e)}")
