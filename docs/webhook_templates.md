@@ -270,6 +270,8 @@ Additional fields may be required depending on the update type.
 
 ## Task List
 
+Task lists are special elements that display on the right side of the chat interface, not within the chat messages.
+
 ### Create Task List
 
 ```json
@@ -290,7 +292,7 @@ Additional fields may be required depending on the update type.
 }
 ```
 
-- `status`: Can be "running", "done", "failed", or "pending"
+- `status`: Can be "running", "done", "failed", or "ready" (not "pending")
 - `icon`: Optional icon name
 
 ### Update Task
@@ -301,6 +303,64 @@ Additional fields may be required depending on the update type.
   "name": "Data Processing",
   "status": "done",
   "icon": "check-circle"
+}
+```
+
+### Complete All Tasks
+
+To mark all tasks as complete, update each task individually with a "done" status:
+
+```json
+{
+  "type": "task-list-update",
+  "name": "Task 1",
+  "status": "done",
+  "icon": "check-circle"
+}
+```
+
+### Close Task List
+
+To close a task list, you need to:
+
+1. Mark all tasks as complete (status: "done")
+2. Update the task list status to indicate completion
+
+```json
+{
+  "type": "task-list-update",
+  "name": "Final Status",
+  "status": "done",
+  "icon": "check-circle",
+  "is_final": true
+}
+```
+
+The `is_final` flag indicates that this is the final update for the task list. After this update, the task list will remain visible but will be considered complete.
+
+### Complete Task List Example
+
+```json
+{
+  "type": "task_list",
+  "title": "Processing Your Request",
+  "tasks": [
+    {
+      "name": "Understanding request",
+      "status": "running",
+      "icon": "loader"
+    },
+    {
+      "name": "Retrieving information",
+      "status": "ready",
+      "icon": "clock"
+    },
+    {
+      "name": "Generating response",
+      "status": "ready",
+      "icon": "clock"
+    }
+  ]
 }
 ```
 
@@ -316,6 +376,49 @@ curl -X POST http://localhost:5679/status \
     "content": "This is a test toast notification",
     "toast_type": "info",
     "duration": 3000
+  }'
+```
+
+### Testing Task List with cURL
+
+```bash
+# Create a task list
+curl -X POST http://localhost:5679/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "task-list-create",
+    "title": "Processing Tasks"
+  }'
+
+# Add a task
+curl -X POST http://localhost:5679/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "task-list-add",
+    "name": "Data Processing",
+    "status": "running",
+    "icon": "loader"
+  }'
+
+# Update a task
+curl -X POST http://localhost:5679/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "task-list-update",
+    "name": "Data Processing",
+    "status": "done",
+    "icon": "check-circle"
+  }'
+
+# Close the task list (mark as complete)
+curl -X POST http://localhost:5679/status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "task-list-update",
+    "name": "Final Status",
+    "status": "done",
+    "icon": "check-circle",
+    "is_final": true
   }'
 ```
 
@@ -335,5 +438,6 @@ Here are some commonly used icons:
 - "alert-circle"
 - "info"
 - "bell"
+- "clock" (used for "ready" tasks)
 
 For a complete list of available icons, refer to the Lucide icon set: [https://lucide.dev/icons/](https://lucide.dev/icons/) 
