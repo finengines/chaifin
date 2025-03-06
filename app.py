@@ -210,10 +210,12 @@ async def on_chat_start():
             "web_search_mode": cl.user_session.get("web_search_mode", False)
         }
         
+        # Send as a hidden message
         await cl.Message(
             author="system",
             content=json.dumps(mode_update),
-            language="json"
+            language="json",
+            display="none"  # This makes the message hidden in the UI
         ).send()
         
     except Exception as e:
@@ -844,11 +846,12 @@ async def on_toggle_reasoning(action):
         await cl.Message(
             author="system",
             content=json.dumps(mode_update),
-            language="json"
+            language="json",
+            display="none"  # This makes the message hidden in the UI
         ).send()
         
     except Exception as e:
-        error_message = f"Error handling toggle_reasoning action: {str(e)}"
+        error_message = f"Error in toggle_reasoning: {str(e)}"
         print(error_message)
         logger.error(error_message)
 
@@ -894,11 +897,12 @@ async def on_toggle_privacy(action):
         await cl.Message(
             author="system",
             content=json.dumps(mode_update),
-            language="json"
+            language="json",
+            display="none"  # This makes the message hidden in the UI
         ).send()
         
     except Exception as e:
-        error_message = f"Error handling toggle_privacy action: {str(e)}"
+        error_message = f"Error in toggle_privacy: {str(e)}"
         print(error_message)
         logger.error(error_message)
 
@@ -931,11 +935,12 @@ async def on_toggle_deep_research(action):
         await cl.Message(
             author="system",
             content=json.dumps(mode_update),
-            language="json"
+            language="json",
+            display="none"  # This makes the message hidden in the UI
         ).send()
         
     except Exception as e:
-        error_message = f"Error handling toggle_deep_research action: {str(e)}"
+        error_message = f"Error in toggle_deep_research: {str(e)}"
         print(error_message)
         logger.error(error_message)
 
@@ -968,11 +973,12 @@ async def on_toggle_web_search(action):
         await cl.Message(
             author="system",
             content=json.dumps(mode_update),
-            language="json"
+            language="json",
+            display="none"  # This makes the message hidden in the UI
         ).send()
         
     except Exception as e:
-        error_message = f"Error handling toggle_web_search action: {str(e)}"
+        error_message = f"Error in toggle_web_search: {str(e)}"
         print(error_message)
         logger.error(error_message)
 
