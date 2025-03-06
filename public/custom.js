@@ -5,12 +5,19 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Add task list close button functionality
   function addTaskListCloseButtons() {
-    // Find all task lists
-    const taskLists = document.querySelectorAll('.cl-tasklist, .cl-task-list');
+    console.log('Attempting to add task list close buttons');
     
-    taskLists.forEach(taskList => {
+    // Find all task lists using multiple possible selectors
+    const taskLists = document.querySelectorAll('.cl-tasklist, .cl-task-list, [data-testid="task-list"]');
+    console.log('Found task lists:', taskLists.length);
+    
+    taskLists.forEach((taskList, index) => {
+      console.log(`Processing task list ${index + 1}`);
+      
       // Check if this task list already has a close button
       if (!taskList.querySelector('.cl-tasklist-close')) {
+        console.log(`Adding close button to task list ${index + 1}`);
+        
         // Create close button
         const closeButton = document.createElement('div');
         closeButton.className = 'cl-tasklist-close';
@@ -18,6 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add click event to hide the task list
         closeButton.addEventListener('click', function() {
+          console.log('Close button clicked');
           taskList.style.display = 'none';
           
           // Show a toast notification
@@ -28,30 +36,46 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Add the close button to the task list
         taskList.appendChild(closeButton);
+        console.log(`Close button added to task list ${index + 1}`);
+      } else {
+        console.log(`Task list ${index + 1} already has a close button`);
       }
     });
   }
   
-  // Run initially
-  setTimeout(addTaskListCloseButtons, 1000);
+  // Run initially with a longer delay to ensure DOM is fully loaded
+  setTimeout(addTaskListCloseButtons, 2000);
+  
+  // Run again after a longer delay in case the first attempt missed any elements
+  setTimeout(addTaskListCloseButtons, 5000);
   
   // Set up a mutation observer to add close buttons to new task lists
   const observer = new MutationObserver(function(mutations) {
+    let taskListAdded = false;
+    
     mutations.forEach(function(mutation) {
       if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
         // Check if any task lists were added
-        const addedTaskLists = Array.from(mutation.addedNodes).some(node => 
-          node.nodeType === Node.ELEMENT_NODE && 
-          (node.classList.contains('cl-tasklist') || node.classList.contains('cl-task-list') ||
-           node.querySelector('.cl-tasklist, .cl-task-list'))
-        );
-        
-        if (addedTaskLists) {
-          // Add close buttons to new task lists
-          setTimeout(addTaskListCloseButtons, 100);
-        }
+        Array.from(mutation.addedNodes).forEach(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            if (node.classList && (node.classList.contains('cl-tasklist') || node.classList.contains('cl-task-list'))) {
+              taskListAdded = true;
+            } else if (node.querySelector) {
+              const nestedTaskLists = node.querySelectorAll('.cl-tasklist, .cl-task-list, [data-testid="task-list"]');
+              if (nestedTaskLists.length > 0) {
+                taskListAdded = true;
+              }
+            }
+          }
+        });
       }
     });
+    
+    if (taskListAdded) {
+      console.log('Task list added to DOM, adding close buttons');
+      // Add close buttons to new task lists with a slight delay
+      setTimeout(addTaskListCloseButtons, 500);
+    }
   });
   
   // Start observing the document body

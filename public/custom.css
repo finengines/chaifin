@@ -1,7 +1,7 @@
 /* Custom styles for Chainlit UI elements */
 
 /* TaskList styling */
-.cl-tasklist {
+.cl-tasklist, [data-testid="task-list"] {
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   overflow: hidden;
@@ -13,31 +13,32 @@
 /* Add custom close button for task list */
 .cl-tasklist-close {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 10;
+  z-index: 100;
   transition: background-color 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .cl-tasklist-close:hover {
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 0, 0, 0.4);
 }
 
 .cl-tasklist-close::before,
 .cl-tasklist-close::after {
   content: '';
   position: absolute;
-  width: 12px;
+  width: 14px;
   height: 2px;
-  background-color: #666;
+  background-color: white;
   border-radius: 1px;
 }
 
@@ -51,16 +52,16 @@
 
 /* Dark mode styles for close button */
 .dark .cl-tasklist-close {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 .dark .cl-tasklist-close:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 .dark .cl-tasklist-close::before,
 .dark .cl-tasklist-close::after {
-  background-color: #ccc;
+  background-color: #222;
 }
 
 .cl-tasklist-header {

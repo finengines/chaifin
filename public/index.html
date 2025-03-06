@@ -3,20 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chainlit App</title>
-  <!-- Load Lucide icons from CDN -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <title>Chainlit Custom Scripts</title>
 </head>
 <body>
-  <!-- This file is used to include the Lucide library -->
-  <script>
-    // Initialize Lucide icons when the page loads
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.lucide && window.lucide.createIcons) {
-        window.lucide.createIcons();
-        console.log('Lucide icons initialized from index.html');
-      }
-    });
-  </script>
+  <!-- This file is loaded by Chainlit to include custom scripts -->
+  <script src="/task-list-close.js"></script>
 </body>
 </html> 
