@@ -198,56 +198,27 @@ async def on_chat_start():
         **Session ID:** `{session_id}`
         """
         
-        # Create action buttons for quick access to reasoning and privacy modes
-        reasoning_action = cl.Action(
-            name="toggle_reasoning",
-            label="🧠 Think",
-            description="Toggle reasoning mode on/off",
-            payload={}
-        )
+        # Send the welcome message
+        await cl.Message(content=welcome_message).send()
         
-        privacy_action = cl.Action(
-            name="toggle_privacy",
-            label="🛡️ Privacy",
-            description="Toggle privacy mode on/off",
-            payload={}
-        )
-        
-        deep_research_action = cl.Action(
-            name="toggle_deep_research",
-            label="🔍 Deep Research",
-            description="Toggle deep research mode on/off",
-            payload={}
-        )
-        
-        web_search_action = cl.Action(
-            name="toggle_web_search",
-            label="🌐 Web Search",
-            description="Toggle web search mode on/off",
-            payload={}
-        )
-        
-        # Send the welcome message with action buttons
+        # Initialize the mode buttons by sending a mode update
         await cl.Message(
-            content=welcome_message,
-            actions=[reasoning_action, privacy_action, deep_research_action, web_search_action]
+            author="system",
+            content="",
+            language="json",
+            elements=[
+                cl.Custom(
+                    name="mode_update",
+                    props={
+                        "type": "mode_update",
+                        "reasoning_mode": cl.user_session.get("reasoning_mode", False),
+                        "privacy_mode": cl.user_session.get("privacy_mode", False),
+                        "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+                        "web_search_mode": cl.user_session.get("web_search_mode", False)
+                    }
+                )
+            ]
         ).send()
-        
-        # Send a message with instructions on how to use the buttons
-        instructions = """
-        ## Available Modes
-        
-        Click on any button to toggle the mode on/off:
-        
-        - **🧠 Think**: AI will show its reasoning process
-        - **🛡️ Privacy**: Your conversation won't be stored for training
-        - **🔍 Deep Research**: More thorough analysis of your questions
-        - **🌐 Web Search**: Search the web for information
-        
-        You can use these modes individually or in combination.
-        """
-        
-        await cl.Message(content=instructions).send()
         
     except Exception as e:
         error_message = f"Error in on_chat_start: {str(e)}"
@@ -330,7 +301,7 @@ async def on_message(message: cl.Message):
         if message.content.strip() == "/help_widgets":
             await show_widgets_help()
             return
-            
+        
         # Get the current chat profile from the user session
         current_profile_name = cl.user_session.get("chat_profile")
         print(f"Current chat profile from session: {current_profile_name}")
@@ -535,12 +506,6 @@ async def on_message(message: cl.Message):
                                     elements=elements,
                                     author="Assistant"
                                 ).send()
-                            
-                            # Extract and process any metadata
-                            metadata = item.get("metadata", {})
-                            if metadata:
-                                # Process any specific metadata fields here
-                                pass
                         else:
                             # If the item is not a dict, just send it as a string
                             await cl.Message(content=str(item), author="Assistant").send()
@@ -871,26 +836,29 @@ async def on_toggle_reasoning(action):
             ]
         ).send()
         
-        # Create a new action button with updated state
-        status = "ON" if new_value else "OFF"
-        new_action = cl.Action(
-            name="toggle_reasoning",
-            label="🧠 Think",
-            description="Toggle reasoning mode on/off",
-            payload={}
-        )
-        
-        # Send a message to confirm the change
+        # Send a mode update to the client
         await cl.Message(
-            content=f"Reasoning mode turned **{status}**",
-            actions=[new_action]
+            author="system",
+            content="",
+            language="json",
+            elements=[
+                cl.Custom(
+                    name="mode_update",
+                    props={
+                        "type": "mode_update",
+                        "reasoning_mode": new_value,
+                        "privacy_mode": cl.user_session.get("privacy_mode", False),
+                        "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+                        "web_search_mode": cl.user_session.get("web_search_mode", False)
+                    }
+                )
+            ]
         ).send()
         
     except Exception as e:
         error_message = f"Error handling toggle_reasoning action: {str(e)}"
         print(error_message)
         logger.error(error_message)
-        await cl.Message(content=f"Error toggling reasoning mode: {str(e)}").send()
 
 @cl.action_callback("toggle_privacy")
 async def on_toggle_privacy(action):
@@ -922,26 +890,29 @@ async def on_toggle_privacy(action):
             ]
         ).send()
         
-        # Create a new action button with updated state
-        status = "ON" if new_value else "OFF"
-        new_action = cl.Action(
-            name="toggle_privacy",
-            label="🛡️ Privacy",
-            description="Toggle privacy mode on/off",
-            payload={}
-        )
-        
-        # Send a message to confirm the change
+        # Send a mode update to the client
         await cl.Message(
-            content=f"Privacy mode turned **{status}**",
-            actions=[new_action]
+            author="system",
+            content="",
+            language="json",
+            elements=[
+                cl.Custom(
+                    name="mode_update",
+                    props={
+                        "type": "mode_update",
+                        "reasoning_mode": cl.user_session.get("reasoning_mode", False),
+                        "privacy_mode": new_value,
+                        "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+                        "web_search_mode": cl.user_session.get("web_search_mode", False)
+                    }
+                )
+            ]
         ).send()
         
     except Exception as e:
         error_message = f"Error handling toggle_privacy action: {str(e)}"
         print(error_message)
         logger.error(error_message)
-        await cl.Message(content=f"Error toggling privacy mode: {str(e)}").send()
 
 @cl.action_callback("toggle_deep_research")
 async def on_toggle_deep_research(action):
@@ -960,26 +931,29 @@ async def on_toggle_deep_research(action):
         new_value = not current_value
         cl.user_session.set("deep_research_mode", new_value)
         
-        # Create a new action button with updated state
-        status = "ON" if new_value else "OFF"
-        new_action = cl.Action(
-            name="toggle_deep_research",
-            label="🔍 Deep Research",
-            description="Toggle deep research mode on/off",
-            payload={}
-        )
-        
-        # Send a message to confirm the change
+        # Send a mode update to the client
         await cl.Message(
-            content=f"Deep research mode turned **{status}**",
-            actions=[new_action]
+            author="system",
+            content="",
+            language="json",
+            elements=[
+                cl.Custom(
+                    name="mode_update",
+                    props={
+                        "type": "mode_update",
+                        "reasoning_mode": cl.user_session.get("reasoning_mode", False),
+                        "privacy_mode": cl.user_session.get("privacy_mode", False),
+                        "deep_research_mode": new_value,
+                        "web_search_mode": cl.user_session.get("web_search_mode", False)
+                    }
+                )
+            ]
         ).send()
         
     except Exception as e:
         error_message = f"Error handling toggle_deep_research action: {str(e)}"
         print(error_message)
         logger.error(error_message)
-        await cl.Message(content=f"Error toggling deep research mode: {str(e)}").send()
 
 @cl.action_callback("toggle_web_search")
 async def on_toggle_web_search(action):
@@ -998,26 +972,29 @@ async def on_toggle_web_search(action):
         new_value = not current_value
         cl.user_session.set("web_search_mode", new_value)
         
-        # Create a new action button with updated state
-        status = "ON" if new_value else "OFF"
-        new_action = cl.Action(
-            name="toggle_web_search",
-            label="🌐 Web Search",
-            description="Toggle web search mode on/off",
-            payload={}
-        )
-        
-        # Send a message to confirm the change
+        # Send a mode update to the client
         await cl.Message(
-            content=f"Web search mode turned **{status}**",
-            actions=[new_action]
+            author="system",
+            content="",
+            language="json",
+            elements=[
+                cl.Custom(
+                    name="mode_update",
+                    props={
+                        "type": "mode_update",
+                        "reasoning_mode": cl.user_session.get("reasoning_mode", False),
+                        "privacy_mode": cl.user_session.get("privacy_mode", False),
+                        "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+                        "web_search_mode": new_value
+                    }
+                )
+            ]
         ).send()
         
     except Exception as e:
         error_message = f"Error handling toggle_web_search action: {str(e)}"
         print(error_message)
         logger.error(error_message)
-        await cl.Message(content=f"Error toggling web search mode: {str(e)}").send()
 
 @cl.action_callback
 async def on_action(action):
@@ -1355,43 +1332,7 @@ async def show_widgets_help():
         - **Toggles**: Their state (on/off) is included with every message sent
         """
         
-        # Create action buttons for the help message
-        reasoning_status = "ON" if cl.user_session.get("reasoning_mode", False) else "OFF"
-        privacy_status = "ON" if cl.user_session.get("privacy_mode", False) else "OFF"
-        deep_research_status = "ON" if cl.user_session.get("deep_research_mode", False) else "OFF"
-        web_search_status = "ON" if cl.user_session.get("web_search_mode", False) else "OFF"
-        
-        actions = [
-            cl.Action(
-                name="toggle_reasoning",
-                label="🧠 Think",
-                description="Toggle reasoning mode on/off",
-                payload={}
-            ),
-            cl.Action(
-                name="toggle_privacy",
-                label="🛡️ Privacy",
-                description="Toggle privacy mode on/off",
-                payload={}
-            ),
-            cl.Action(
-                name="toggle_deep_research",
-                label="🔍 Deep Research",
-                description="Toggle deep research mode on/off",
-                payload={}
-            ),
-            cl.Action(
-                name="toggle_web_search",
-                label="🌐 Web Search",
-                description="Toggle web search mode on/off",
-                payload={}
-            )
-        ]
-        
-        await cl.Message(
-            content=help_text,
-            actions=actions
-        ).send()
+        await cl.Message(content=help_text).send()
         
     except Exception as e:
         error_message = f"Error showing widgets help: {str(e)}"
@@ -1401,4 +1342,4 @@ async def show_widgets_help():
 
 if __name__ == "__main__":
     # This block will be executed when running the script directly
-    pass 
+    print("Starting Chainlit app...") 

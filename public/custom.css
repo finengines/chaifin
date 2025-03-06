@@ -2135,4 +2135,54 @@
   .animated-progress-step {
     padding: 0.5rem;
   }
+}
+
+/* Custom CSS for mode buttons */
+
+#mode-buttons-container {
+  position: fixed;
+  bottom: 70px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  background-color: var(--cl-background);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+.mode-button {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background-color: var(--cl-background);
+  color: var(--cl-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.mode-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
+}
+
+.mode-button.active {
+  background-color: var(--cl-primary);
+  color: white;
+  border-color: var(--cl-primary);
+}
+
+/* Adjust the chat container to make room for the buttons */
+.cl-chat-container {
+  padding-bottom: 70px !important;
+}
+
+/* Make the chat input container have a higher z-index */
+.cl-chat-input-container {
+  z-index: 1001 !important;
 } 

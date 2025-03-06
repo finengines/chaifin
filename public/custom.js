@@ -485,4 +485,160 @@ document.addEventListener('chainlit:update', () => {
       }
     }
   });
-}); 
+});
+
+// Custom JavaScript to add persistent mode buttons below the chat input
+
+function createModeButton(id, label, isActive = false) {
+  const button = document.createElement('button');
+  button.id = id;
+  button.className = `mode-button ${isActive ? 'active' : ''}`;
+  button.innerHTML = label;
+  
+  // Add click event listener
+  button.addEventListener('click', () => {
+    // Toggle active state
+    button.classList.toggle('active');
+    
+    // Send message to backend
+    window.chainlitClient.sendMessage({
+      type: 'action',
+      name: id,
+      payload: {}
+    });
+  });
+  
+  return button;
+}
+
+function updateModeButton(id, isActive) {
+  const button = document.getElementById(id);
+  if (button) {
+    if (isActive) {
+      button.classList.add('active');
+    } else {
+      button.classList.remove('active');
+    }
+  }
+}
+
+function createModeButtonsContainer() {
+  // Create container for mode buttons
+  const container = document.createElement('div');
+  container.id = 'mode-buttons-container';
+  container.style.display = 'flex';
+  container.style.justifyContent = 'center';
+  container.style.gap = '10px';
+  container.style.padding = '10px';
+  container.style.borderTop = '1px solid rgba(0, 0, 0, 0.1)';
+  
+  return container;
+}
+
+function addModeButtons() {
+  // Check if the chat input exists
+  const chatInput = document.querySelector('.cl-chat-input-container');
+  if (!chatInput) {
+    // Try again in 500ms
+    setTimeout(addModeButtons, 500);
+    return;
+  }
+  
+  // Check if we've already added the buttons
+  if (document.getElementById('mode-buttons-container')) {
+    return;
+  }
+  
+  // Create container
+  const container = createModeButtonsContainer();
+  
+  // Create buttons
+  const thinkButton = createModeButton('toggle_reasoning', '🧠 Think');
+  const privacyButton = createModeButton('toggle_privacy', '🛡️ Privacy');
+  const deepResearchButton = createModeButton('toggle_deep_research', '🔍 Deep Research');
+  const webSearchButton = createModeButton('toggle_web_search', '🌐 Web Search');
+  
+  // Add buttons to container
+  container.appendChild(thinkButton);
+  container.appendChild(privacyButton);
+  container.appendChild(deepResearchButton);
+  container.appendChild(webSearchButton);
+  
+  // Insert container before the chat input
+  chatInput.parentNode.insertBefore(container, chatInput);
+  
+  // Add CSS for the buttons
+  const style = document.createElement('style');
+  style.textContent = `
+    #mode-buttons-container {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+      background-color: var(--cl-background);
+    }
+    
+    .mode-button {
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      background-color: var(--cl-background);
+      color: var(--cl-text);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 14px;
+    }
+    
+    .mode-button:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .mode-button.active {
+      background-color: var(--cl-primary);
+      color: white;
+      border-color: var(--cl-primary);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// Listen for messages from the backend to update button states
+function setupMessageListener() {
+  const originalOnMessage = window.chainlitClient.socket.onmessage;
+  
+  window.chainlitClient.socket.onmessage = function(event) {
+    // Call the original handler
+    originalOnMessage.call(this, event);
+    
+    // Parse the message
+    const data = JSON.parse(event.data);
+    
+    // Check if it's a mode update message
+    if (data.type === 'mode_update') {
+      updateModeButton('toggle_reasoning', data.reasoning_mode);
+      updateModeButton('toggle_privacy', data.privacy_mode);
+      updateModeButton('toggle_deep_research', data.deep_research_mode);
+      updateModeButton('toggle_web_search', data.web_search_mode);
+    }
+  };
+}
+
+// Initialize when the page is loaded
+function init() {
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    // Check if chainlitClient is available
+    if (window.chainlitClient) {
+      addModeButtons();
+      setupMessageListener();
+    } else {
+      // Try again in 500ms
+      setTimeout(init, 500);
+    }
+  } else {
+    // Wait for the page to load
+    window.addEventListener('DOMContentLoaded', init);
+  }
+}
+
+init(); 
