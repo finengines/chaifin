@@ -202,22 +202,18 @@ async def on_chat_start():
         await cl.Message(content=welcome_message).send()
         
         # Initialize the mode buttons by sending a mode update
+        mode_update = {
+            "type": "mode_update",
+            "reasoning_mode": cl.user_session.get("reasoning_mode", False),
+            "privacy_mode": cl.user_session.get("privacy_mode", False),
+            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+            "web_search_mode": cl.user_session.get("web_search_mode", False)
+        }
+        
         await cl.Message(
             author="system",
-            content="",
-            language="json",
-            elements=[
-                cl.Custom(
-                    name="mode_update",
-                    props={
-                        "type": "mode_update",
-                        "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-                        "privacy_mode": cl.user_session.get("privacy_mode", False),
-                        "deep_research_mode": cl.user_session.get("deep_research_mode", False),
-                        "web_search_mode": cl.user_session.get("web_search_mode", False)
-                    }
-                )
-            ]
+            content=json.dumps(mode_update),
+            language="json"
         ).send()
         
     except Exception as e:
@@ -837,22 +833,18 @@ async def on_toggle_reasoning(action):
         ).send()
         
         # Send a mode update to the client
+        mode_update = {
+            "type": "mode_update",
+            "reasoning_mode": new_value,
+            "privacy_mode": cl.user_session.get("privacy_mode", False),
+            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+            "web_search_mode": cl.user_session.get("web_search_mode", False)
+        }
+        
         await cl.Message(
             author="system",
-            content="",
-            language="json",
-            elements=[
-                cl.Custom(
-                    name="mode_update",
-                    props={
-                        "type": "mode_update",
-                        "reasoning_mode": new_value,
-                        "privacy_mode": cl.user_session.get("privacy_mode", False),
-                        "deep_research_mode": cl.user_session.get("deep_research_mode", False),
-                        "web_search_mode": cl.user_session.get("web_search_mode", False)
-                    }
-                )
-            ]
+            content=json.dumps(mode_update),
+            language="json"
         ).send()
         
     except Exception as e:
@@ -891,22 +883,18 @@ async def on_toggle_privacy(action):
         ).send()
         
         # Send a mode update to the client
+        mode_update = {
+            "type": "mode_update",
+            "reasoning_mode": cl.user_session.get("reasoning_mode", False),
+            "privacy_mode": new_value,
+            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+            "web_search_mode": cl.user_session.get("web_search_mode", False)
+        }
+        
         await cl.Message(
             author="system",
-            content="",
-            language="json",
-            elements=[
-                cl.Custom(
-                    name="mode_update",
-                    props={
-                        "type": "mode_update",
-                        "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-                        "privacy_mode": new_value,
-                        "deep_research_mode": cl.user_session.get("deep_research_mode", False),
-                        "web_search_mode": cl.user_session.get("web_search_mode", False)
-                    }
-                )
-            ]
+            content=json.dumps(mode_update),
+            language="json"
         ).send()
         
     except Exception as e:
@@ -932,22 +920,18 @@ async def on_toggle_deep_research(action):
         cl.user_session.set("deep_research_mode", new_value)
         
         # Send a mode update to the client
+        mode_update = {
+            "type": "mode_update",
+            "reasoning_mode": cl.user_session.get("reasoning_mode", False),
+            "privacy_mode": cl.user_session.get("privacy_mode", False),
+            "deep_research_mode": new_value,
+            "web_search_mode": cl.user_session.get("web_search_mode", False)
+        }
+        
         await cl.Message(
             author="system",
-            content="",
-            language="json",
-            elements=[
-                cl.Custom(
-                    name="mode_update",
-                    props={
-                        "type": "mode_update",
-                        "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-                        "privacy_mode": cl.user_session.get("privacy_mode", False),
-                        "deep_research_mode": new_value,
-                        "web_search_mode": cl.user_session.get("web_search_mode", False)
-                    }
-                )
-            ]
+            content=json.dumps(mode_update),
+            language="json"
         ).send()
         
     except Exception as e:
@@ -973,22 +957,18 @@ async def on_toggle_web_search(action):
         cl.user_session.set("web_search_mode", new_value)
         
         # Send a mode update to the client
+        mode_update = {
+            "type": "mode_update",
+            "reasoning_mode": cl.user_session.get("reasoning_mode", False),
+            "privacy_mode": cl.user_session.get("privacy_mode", False),
+            "deep_research_mode": cl.user_session.get("deep_research_mode", False),
+            "web_search_mode": new_value
+        }
+        
         await cl.Message(
             author="system",
-            content="",
-            language="json",
-            elements=[
-                cl.Custom(
-                    name="mode_update",
-                    props={
-                        "type": "mode_update",
-                        "reasoning_mode": cl.user_session.get("reasoning_mode", False),
-                        "privacy_mode": cl.user_session.get("privacy_mode", False),
-                        "deep_research_mode": cl.user_session.get("deep_research_mode", False),
-                        "web_search_mode": new_value
-                    }
-                )
-            ]
+            content=json.dumps(mode_update),
+            language="json"
         ).send()
         
     except Exception as e:

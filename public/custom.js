@@ -614,12 +614,22 @@ function setupMessageListener() {
     // Parse the message
     const data = JSON.parse(event.data);
     
-    // Check if it's a mode update message
-    if (data.type === 'mode_update') {
-      updateModeButton('toggle_reasoning', data.reasoning_mode);
-      updateModeButton('toggle_privacy', data.privacy_mode);
-      updateModeButton('toggle_deep_research', data.deep_research_mode);
-      updateModeButton('toggle_web_search', data.web_search_mode);
+    // Check if it's a message with content
+    if (data.message && data.message.author === 'system' && data.message.language === 'json') {
+      try {
+        // Try to parse the content as JSON
+        const contentData = JSON.parse(data.message.content);
+        
+        // Check if it's a mode update message
+        if (contentData.type === 'mode_update') {
+          updateModeButton('toggle_reasoning', contentData.reasoning_mode);
+          updateModeButton('toggle_privacy', contentData.privacy_mode);
+          updateModeButton('toggle_deep_research', contentData.deep_research_mode);
+          updateModeButton('toggle_web_search', contentData.web_search_mode);
+        }
+      } catch (e) {
+        console.error('Error parsing message content as JSON:', e);
+      }
     }
   };
 }
